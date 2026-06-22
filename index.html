@@ -1,390 +1,411 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FREE RETRO EMULATOR</title>
-    <!-- Tailwind CSS (고급 레트로 다크 테마를 위한 스타일 라이브러리) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 구글 Noto Sans KR 폰트 및 고전 게임 감성 도트 폰트 로드 -->
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@300;400;700&display=swap" rel="stylesheet">
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Retro Emulator (Fixed Engine Build)</title>
     <style>
-        body {
-            font-family: 'Noto Sans KR', sans-serif;
-            background-color: #0d0e12;
-            color: #e2e8f0;
+        body,
+        html {
+            height: 100%;
+            background: black;
+            margin: 0;
             overflow: hidden;
         }
-        .pixel-font {
-            font-family: 'Press Start 2P', cursive;
+
+        #cheat-sheet {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.75);
+            color: #aaa;
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-family: sans-serif;
+            z-index: 99999;
+            display: none;
+            white-space: nowrap;
+            opacity: 1;
+            transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        /* 에뮬레이터 영역 스타일 */
-        #game-container {
+
+        #cheat-sheet span {
+            color: #fff;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        #control-panel {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 100000;
+            display: flex;
+            gap: 8px;
+        }
+
+        .db-btn {
+            background: #0061ff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: sans-serif;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .db-btn:hover {
+            background: #004bce;
+        }
+
+        .db-btn.connected {
+            background: #42b883;
+            cursor: default;
+        }
+
+        .db-disconnect-btn {
+            background: #e04141;
+            color: white;
+            display: none;
+        }
+
+        .db-disconnect-btn:hover {
+            background: #c03434;
+        }
+
+        #app {
             width: 100%;
             height: 100%;
-            background-color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-family: sans-serif;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
         }
-        /* 스크롤바 커스텀 */
-        ::-webkit-scrollbar {
-            width: 6px;
+
+        .upload-area {
+            border: 2px dashed #444;
+            padding: 60px 40px;
+            border-radius: 12px;
+            background: #1a1a1a;
+            text-align: center;
+            cursor: pointer;
+            min-width: 320px;
         }
-        ::-webkit-scrollbar-track {
-            background: #1a1c23;
+
+        .upload-area.dragover {
+            border-color: #00f0ff;
+            background: #252525;
         }
-        ::-webkit-scrollbar-thumb {
-            background: #4a5568;
-            border-radius: 3px;
+
+        #game-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            z-index: 1;
+        }
+
+        #game-container {
+            width: 100% !important;
+            height: 100% !important;
+            margin: 0 auto;
+        }
+
+        #cloud-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-family: sans-serif;
+            font-size: 20px;
+            font-weight: bold;
+            z-index: 999999;
+        }
+
+        .retro-gray {
+            filter: grayscale(1) !important;
+        }
+
+        .night-mode {
+            filter: brightness(0.4) !important;
+        }
+
+        .retro-43 {
+            aspect-ratio: 4 / 3 !important;
+            width: auto !important;
+            height: 100% !important;
         }
     </style>
+    <script src="https://unpkg.com/dropbox/dist/Dropbox-sdk.min.js"></script>
 </head>
-<body class="h-screen w-screen flex flex-col justify-between select-none relative">
 
-    <!-- [1] 상단 네비게이션 바 -->
-    <header class="w-full bg-[#161920] border-b border-[#2d3139] px-6 py-3 flex justify-between items-center z-10">
-        <div class="flex items-center space-x-3">
-            <span class="pixel-font text-xs text-emerald-400 animate-pulse">●</span>
-            <h1 class="pixel-font text-sm tracking-widest text-emerald-400">RETRO-CONTROL V1.0</h1>
+<body>
+
+    <div id="control-panel">
+        <button id="db-connect-btn" class="db-btn">🔗 Dropbox 연결하기</button>
+        <button id="db-disconnect-btn" class="db-btn db-disconnect-btn">❌ 연결 끊기</button>
+    </div>
+
+    <div id="cloud-overlay">☁️ 클라우드 데이터를 동기화 중입니다...</div>
+
+    <div id="cheat-sheet">
+        <span>F1</span> 실시간 세이브 | <span>ESC</span> 게임 종료(클라우드 자동백업) | <span>F</span> 전체화면 | <span>G</span> 흑백감성 |
+        <span>N</span> 야간모드 | <span>B</span> 4:3화면비
+    </div>
+
+    <div id="app">
+        <div id="drop-zone" class="upload-area">
+            <h1>나만의 레트로 게임기</h1>
+            <p>롬 파일을 드래그하거나 클릭하세요</p>
+            <input type="file" id="file-input" hidden accept=".nes,.sfc,.smc,.gb,.gbc,.gba" />
         </div>
-        <div class="flex items-center space-x-4">
-            <!-- 클라우드 동기화 상태 표시등 -->
-            <div id="cloud-status" class="flex items-center space-x-2 bg-[#1f2330] px-3 py-1 rounded-full border border-[#2d3139] text-xs">
-                <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                <span id="status-text" class="text-gray-400">드롭박스 연결 확인 중...</span>
-            </div>
-        </div>
-    </header>
+    </div>
 
-    <!-- [2] 메인 레이아웃 (컨트롤 패널 및 게임 화면) -->
-    <main class="flex-1 w-full flex relative overflow-hidden">
-        
-        <!-- [2-A] 대기 상태의 파일 드롭존 / 컨트롤 패널 -->
-        <div id="control-panel" class="absolute inset-0 z-20 flex flex-col items-center justify-center p-8 bg-gradient-to-b from-[#0d0e12] to-[#151821]">
-            <div class="max-w-md w-full bg-[#161920] border border-[#2e3440] rounded-xl p-8 shadow-2xl text-center space-y-6 transform transition-all hover:scale-[1.01]">
-                <div class="space-y-2">
-                    <h2 class="pixel-font text-lg text-emerald-400">FREE RETRO</h2>
-                    <p class="text-xs text-gray-400">드롭박스 자동 세이브가 연동되는 웹 에뮬레이터</p>
-                </div>
-                
-                <!-- 드롭박스 액세스 토큰 설정기 (일관성 있는 고급 디자인) -->
-                <div class="bg-[#1f2330] p-4 rounded-lg border border-[#2d3139] text-left space-y-3">
-                    <label class="text-xs font-bold text-gray-300 block">Dropbox Access Token</label>
-                    <div class="flex space-x-2">
-                        <input id="dropbox-token" type="password" placeholder="토큰을 입력해 주세요" 
-                               class="flex-1 bg-[#0d0e12] border border-[#2d3139] px-3 py-1.5 rounded text-xs text-gray-200 focus:outline-none focus:border-emerald-500">
-                        <button onclick="saveToken()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-1.5 rounded transition">
-                            저장
-                        </button>
-                    </div>
-                    <p class="text-[10px] text-gray-500 leading-relaxed">토큰을 저장하면 세이브파일이 클라우드에 자동으로 기록 및 동기화됩니다.</p>
-                </div>
+    <div id="game-wrapper">
+        <div id="game-container"></div>
+    </div>
 
-                <!-- 파일 선택 / 드래그 영역 -->
-                <div id="drop-zone" class="border-2 border-dashed border-[#4c566a] hover:border-emerald-500 rounded-lg p-8 transition cursor-pointer bg-[#0d0e12] group">
-                    <input type="file" id="file-input" class="hidden" accept=".nes,.sfc,.smc,.gb,.gbc,.gba">
-                    <div class="space-y-3 pointer-events-none">
-                        <svg class="w-12 h-12 mx-auto text-gray-500 group-hover:text-emerald-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-                        </svg>
-                        <p class="text-xs text-gray-300">여기에 ROM 파일을 끌어다 놓거나 클릭하세요</p>
-                        <p class="text-[10px] text-gray-500">지원기기: NES, SNES(SFC), GB, GBC, GBA</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- [2-B] 게임 화면 감싸개 -->
-        <div id="game-wrapper" class="hidden w-full h-full relative">
-            <!-- 실제 EmulatorJS가 그려지는 도화지 -->
-            <div id="game-container"></div>
-        </div>
-
-        <!-- [2-C] 팝업식 전술 치트시트 / 알림창 -->
-        <div id="cheat-sheet" class="hidden absolute top-6 right-6 z-30 bg-[#161920]/95 backdrop-blur border border-emerald-500/50 rounded-lg p-4 shadow-xl text-xs space-y-2 transition-all duration-500 max-w-xs">
-            <h4 class="font-bold text-emerald-400 flex items-center space-x-2">
-                <span>🎮 RETRO-BRIDGE 제어 키 안내</span>
-            </h4>
-            <ul class="space-y-1.5 text-gray-300">
-                <li><span class="bg-[#2d3139] px-1.5 py-0.5 rounded text-white font-mono">F1</span> : 클라우드 간편 세이브</li>
-                <li><span class="bg-[#2d3139] px-1.5 py-0.5 rounded text-white font-mono">ESC</span> : 전술 통제 패널 (메뉴) 진입</li>
-            </ul>
-        </div>
-
-    </main>
-
-    <!-- [3] 하단 인디케이터 바 -->
-    <footer class="w-full bg-[#161920] border-t border-[#2d3139] px-6 py-2 flex justify-between items-center z-10 text-[10px] text-gray-500">
-        <div>SYSTEM STATUS: ACTIVE</div>
-        <div>PRODUCED BY KIEK1224 & GEMINI COOPERATION</div>
-    </footer>
-
-    <!-- [4] 브릿지 제어 핵심 자바스크립트 소스 코드 -->
     <script>
-        let isGameRunning = false;
-        let dropboxToken = localStorage.getItem('dropbox_access_token') || '';
-        let currentRomName = '';
-        let currentRomFile = null;
+        console.log("[RETRO-CONTROL] 통합 브릿지 제어 탑 탑승 완료.");
+        const DROPBOX_APP_KEY = 'mxdgeyz3f1eq5nm';
 
-        // 드롭박스 토큰 입력 필드에 기존 값 불러오기
-        if (dropboxToken) {
-            document.getElementById('dropbox-token').value = dropboxToken;
-            updateCloudStatus('connected', '드롭박스 연결 준비 완료');
-        }
+        let isGray = false, isNight = false, isRatio43 = false, isGameRunning = false;
+        let currentRomName = 'retro_game', dbx = null, dropboxToken = localStorage.getItem('db_token');
 
-        // 토큰 수동 저장 함수
-        function saveToken() {
-            const tokenVal = document.getElementById('dropbox-token').value.trim();
-            if (tokenVal) {
-                localStorage.setItem('dropbox_access_token', tokenVal);
-                dropboxToken = tokenVal;
-                updateCloudStatus('connected', '토큰 저장됨 (연결됨)');
-                showToast("토큰이 등록되었습니다. 이제 실시간 세이브가 백업됩니다!");
-            } else {
-                localStorage.removeItem('dropbox_access_token');
-                dropboxToken = '';
-                updateCloudStatus('disconnected', '토큰이 설정되지 않음');
-            }
-        }
+        // 💡 무전 채널 수신기를 최상위 탑 공간에 고정
+        window.top.isF1Saving = false;
+        window.top.isEscSaving = false;
 
-        // 상태 인디케이터 제어 함수
-        function updateCloudStatus(state, message) {
-            const dot = document.getElementById('status-dot');
-            const text = document.getElementById('status-text');
-            text.innerText = message;
-            
-            dot.className = "w-2.5 h-2.5 rounded-full ";
-            if (state === 'connected') {
-                dot.classList.add('bg-emerald-500');
-            } else if (state === 'syncing') {
-                dot.classList.add('bg-blue-500', 'animate-ping');
-            } else if (state === 'error') {
-                dot.classList.add('bg-red-500');
-            } else {
-                dot.classList.add('bg-amber-500');
-            }
-        }
-
-        // 드래그 앤 드롭 파일 탐지기
+        const gameWrapper = document.getElementById('game-wrapper');
+        const gameContainer = document.getElementById('game-container');
+        const cheatSheet = document.getElementById('cheat-sheet');
         const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
+        const dbConnectBtn = document.getElementById('db-connect-btn');
+        const dbDisconnectBtn = document.getElementById('db-disconnect-btn');
+        const cloudOverlay = document.getElementById('cloud-overlay');
 
-        dropZone.addEventListener('click', () => fileInput.click());
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('border-emerald-500', 'bg-[#1f2330]');
-        });
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('border-emerald-500', 'bg-[#1f2330]');
-        });
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('border-emerald-500', 'bg-[#1f2330]');
-            if (e.dataTransfer.files.length > 0) {
-                handleFileSelection(e.dataTransfer.files[0]);
+        // 🔒 다운로드 도청 및 가로채기 엔진 고도화
+        const originalCreateElement = document.createElement;
+        document.createElement = function (tagName, options) {
+            const el = originalCreateElement.call(document, tagName, options);
+            if (tagName.toLowerCase() === 'a') {
+                const originalClick = el.click;
+                el.click = function () {
+                    if (window.top.isF1Saving && el.download && el.download.endsWith('.srm')) {
+                        console.log(`[RETRO-CONTROL] 🛡️ F1 모드 감지: 불필요한 SRAM 배출 취소`);
+                        return;
+                    }
+                    if (window.top.isEscSaving && el.download && el.download.endsWith('.srm')) {
+                        console.log(`[RETRO-CONTROL] ⏱️ ESC 모드 감지: SRM 파일 800ms 딜레이 우회 발사 예정. 원본: ${el.download}`);
+                        el.download = `${currentRomName}.srm`;
+                        setTimeout(() => {
+                            console.log(`[RETRO-CONTROL] 🚀 우회 타격 완료: ${el.download}`);
+                            originalClick.call(el);
+                        }, 800);
+                        return;
+                    }
+                    if (el.download && el.download.endsWith('.srm')) {
+                        el.download = `${currentRomName}.srm`;
+                    }
+                    originalClick.apply(el, arguments);
+                };
             }
-        });
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFileSelection(e.target.files[0]);
+            return el;
+        };
+
+        function initDropbox() {
+            if (window.location.hash) {
+                const params = new URLSearchParams(window.location.hash.substring(1));
+                const token = params.get('access_token');
+                if (token) { localStorage.setItem('db_token', token); dropboxToken = token; window.location.hash = ''; }
             }
-        });
-
-        // 롬 파일 선택 시 에뮬레이터 초기화 절차 가동
-        function handleFileSelection(file) {
-            currentRomFile = file;
-            // 확장자를 지운 순수한 게임 이름을 GameID로 사용합니다 (세이브 깨짐/충돌 방지)
-            currentRomName = file.name.replace(/\.[^/.]+$/, "");
-            
-            // UI 트랜지션
-            document.getElementById('control-panel').classList.add('hidden');
-            document.getElementById('game-wrapper').classList.remove('hidden');
-            
-            // 안내 전술 시트 띄우기
-            const cheatSheet = document.getElementById('cheat-sheet');
-            cheatSheet.classList.remove('hidden');
-            setTimeout(() => {
-                cheatSheet.style.opacity = '0';
-                setTimeout(() => cheatSheet.classList.add('hidden'), 500);
-            }, 5000);
-
-            // 클라우드 백업이 설정된 경우 기존 세이브 다운로드 시도
             if (dropboxToken) {
-                downloadSaveFromDropbox();
+                dbx = new Dropbox.Dropbox({ accessToken: dropboxToken });
+                window.top.dbx = dbx;
+                dbConnectBtn.innerText = '☁️ Dropbox 연동 완료';
+                dbConnectBtn.classList.add('connected');
+                dbConnectBtn.disabled = true;
+                dbDisconnectBtn.style.display = 'block';
             } else {
-                startEmulatorEngine();
+                dbConnectBtn.innerText = '🔗 Dropbox 연결하기';
+                dbConnectBtn.classList.remove('connected');
+                dbConnectBtn.disabled = false;
+                dbDisconnectBtn.style.display = 'none';
             }
         }
 
-        // [핵심] 에뮬레이터 구동 주입
-        function startEmulatorEngine() {
+        dbConnectBtn.addEventListener('click', () => {
+            if (!dropboxToken) {
+                window.location.href = `https://www.dropbox.com/oauth2/authorize?client_id=${DROPBOX_APP_KEY}&response_type=token&redirect_uri=${encodeURIComponent(window.location.href.split('#')[0])}`;
+            }
+        });
+
+        dbDisconnectBtn.addEventListener('click', () => {
+            if (confirm("Dropbox 연결을 해제하시겠습니까?")) {
+                localStorage.removeItem('db_token');
+                dropboxToken = null; dbx = null; window.top.dbx = null;
+                initDropbox();
+            }
+        });
+
+        initDropbox();
+
+        dropZone.addEventListener('click', () => document.getElementById('file-input').click());
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            if (e.target.files?.length > 0) startEmulator(e.target.files[0]);
+        });
+
+        window.addEventListener('dragover', (e) => e.preventDefault());
+        window.addEventListener('drop', (e) => e.preventDefault());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault(); dropZone.classList.remove('dragover');
+            if (e.dataTransfer?.files?.length > 0) { startEmulator(e.dataTransfer.files[0]); }
+        });
+
+        async function startEmulator(file) {
+            if (!file) return;
+            currentRomName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+
+            if (dbx) {
+                cloudOverlay.style.display = 'flex';
+                try {
+                    const response = await dbx.filesDownload({ path: `/${currentRomName}.state` });
+                    window.EJS_saveState = new Uint8Array(await response.result.fileBlob.arrayBuffer());
+                    console.log("클라우드 세이브 주입 완료");
+                } catch (err) { console.log("기존 세이브 없음. 새로 시작합니다."); }
+                cloudOverlay.style.display = 'none';
+            }
+
+            const appUi = document.getElementById('app');
+            if (appUi) appUi.remove();
+            document.getElementById('control-panel').style.display = 'none';
+            gameWrapper.style.display = 'block';
+            cheatSheet.style.display = 'block';
+            setTimeout(() => { cheatSheet.style.opacity = '0'; }, 3000);
+
             isGameRunning = true;
 
-            // 전역 세팅 주입
             window.EJS_player = '#game-container';
-            window.EJS_gameUrl = URL.createObjectURL(currentRomFile);
-            
-            const ext = currentRomFile.name.split('.').pop().toLowerCase();
-            const coreMap = { 
-                'nes': 'nes', 
-                'sfc': 'snes', 
-                'smc': 'snes', 
-                'gb': 'gb', 
-                'gbc': 'gb', 
-                'gba': 'gba' 
-            };
+            window.EJS_gameUrl = URL.createObjectURL(file);
+            const ext = file.name.split('.').pop().toLowerCase();
+            const coreMap = { 'nes': 'nes', 'sfc': 'snes', 'smc': 'snes', 'gb': 'gb', 'gbc': 'gb', 'gba': 'gba' };
             window.EJS_core = coreMap[ext] || 'nes';
-            
-            // 대기업 안정화 클라우드(CDN) 데이터 경로로 안전하게 연결
             window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
             window.EJS_startOnLoaded = true;
             window.EJS_ShowQuickMenu = true;
+            window.EJS_gameID = currentRomName;
             window.EJS_mysavestate = true;
-            
-            // [버그 잡기 1순위] 게임 ID 강제 인젝션
-            window.EJS_gameID = currentRomName || 'retro-standard-game';
-            
-            // 브라우저 캐시 문제를 완전히 방지하기 위해 한국어 리소스를 에러 없이 연동
-            window.EJS_language = 'en-US'; // 404 깨짐 방지를 위해 검증된 en-US 사용
+            window.EJS_language = 'ko-KR';
 
-            console.log("[RETRO-BRIDGE] 통합 브릿지 제어 탑 탑승 완료.");
-            console.log("[RETRO-BRIDGE] 인젝션 게임 ID: ", window.EJS_gameID);
+            // 💡 GameManager에서 안전하게 땡길 수 있는 전역 트리거 바인딩
+            window.top.EJS_triggerSaveState = () => {
+                if (window.EJS_emulator && typeof window.EJS_emulator.saveState === 'function') {
+                    window.EJS_emulator.saveState();
+                }
+            };
 
-            // 로더 자바스크립트도 완벽하게 CDN 클라우드 서버 주소로 호출
+            const engineHook = setInterval(() => {
+                if (window.EJS_emulator?.config) {
+                    window.EJS_emulator.config.enableSaveStates = true;
+                    window.EJS_emulator.config.hasSaveStates = true;
+                    clearInterval(engineHook);
+                }
+            }, 100);
+
+            // 🎯 핵심: 에뮬레이터 엔진에서 스테이트가 낙하하는 순간 처리
+            window.EJS_onSaveState = function (saveData) {
+                if (!saveData || !saveData.state) return;
+
+                const now = new Date();
+                const timestamp = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + "-" + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0') + String(now.getSeconds()).padStart(2, '0');
+                const targetFilename = `${currentRomName}-${timestamp}.state`;
+
+                // 1. .state 파일 브라우저 즉시 배출
+                try {
+                    const blob = new Blob([saveData.state], { type: "application/octet-stream" });
+                    const url = URL.createObjectURL(blob);
+                    const a = originalCreateElement.call(document, "a");
+                    a.href = url;
+                    a.download = targetFilename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    console.log("[RETRO-CONTROL] 스테이트 파일 디스크 저장 완료");
+                } catch (downloadErr) { console.error("로컬 파일 유실:", downloadErr); }
+
+                // 2. 드롭박스 동시 업로드 전송 처리
+                if (dbx) {
+                    console.log("[RETRO-CONTROL] 드롭박스로 바이너리 병렬 전송을 가동합니다.");
+                    const paths = [`/${currentRomName}.state`, `/${targetFilename}`];
+                    paths.forEach(savePath => {
+                        dbx.filesUpload({ path: savePath, contents: saveData.state, mode: 'overwrite' })
+                            .then(() => console.log(`[클라우드 전송성공]: ${savePath}`))
+                            .catch(e => console.error("[클라우드 실패]:", e));
+                    });
+                }
+
+                // 3. 만약 ESC 시퀀스였다면 GameManager의 강제 SRM 연쇄 배출 다리를 호출
+                if (window.top.isEscSaving && window.top.EJS_saveSaveFiles_Bridge) {
+                    console.log("[RETRO-CONTROL] 스테이트 확보 완료 -> 연쇄 SRM 강제 방출 시퀀스 돌입");
+                    window.top.EJS_saveSaveFiles_Bridge();
+                }
+            };
+
             const script = document.createElement('script');
             script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
             document.body.appendChild(script);
         }
 
-        // [버그 잡기 2순위] 덮어쓰기 방지형 전역 키 이벤트 청취기 (useCapture = true 사용)
-        // 이 기술을 사용하면 에뮬레이터 JS가 켜지기 전에 최고 권한 단계에서 브라우저가 키를 먼저 가로챕니다!
-        window.addEventListener('keydown', function(e) {
+        window.addEventListener('keydown', async (e) => {
             if (!isGameRunning) return;
 
-            // [F1] 클라우드 세이브 실행 키
-            if (e.key === 'F1') {
-                e.preventDefault();
-                e.stopPropagation(); // 에뮬레이터 내부 기본 단축키 먹통화시킴
-                console.log("[HOTKEY] F1 강제 감지됨. 클라우드 백업을 수동 가동합니다.");
-                triggerSaveAction();
-            }
-
-            // [ESC] 제어판 일시정지 메뉴 호출 키
             if (e.key === 'Escape') {
                 e.preventDefault();
-                e.stopPropagation();
-                console.log("[HOTKEY] ESC 강제 감지됨. 전술 통제실로 회항합니다.");
-                if (confirm("게임을 일시정지하고 메뉴(컨트롤 패널)로 돌아가시겠습니까? (미저장 데이터는 유실될 수 있습니다)")) {
-                    location.reload(); // 가장 확실하고 깔끔한 초기화
-                }
-            }
-        }, true); // 👈 true (Capture phase) 옵션이 에뮬레이터의 키 차단 코드를 우회하는 황금 열쇠입니다!
+                console.log("[RETRO-CONTROL] ESC 제어탑: 최종 버퍼 방출 대기 모드 진입");
+                window.isF1Saving = false;
+                window.isEscSaving = true;
 
+                cloudOverlay.style.display = 'flex';
+                cloudOverlay.innerText = "☁️ 스냅샷 및 게임 데이터를 클라우드에 안전하게 저장 중입니다...";
 
-        // ==========================================
-        // 드롭박스 클라우드 세이브 엔진 (Dropbox API)
-        // ==========================================
+                // 💡 GameManager.js에서 무전을 받아 SRM 및 State 파일을 하드디스크와 
+                // 클라우드에 업로드할 수 있도록 페이지 리로드 전 4.5초의 유예 시간을 벌어줍니다.
+                await new Promise(r => setTimeout(r, 4500));
 
-        // 세이브 파일 다운로드
-        async function downloadSaveFromDropbox() {
-            if (!dropboxToken) return;
-            updateCloudStatus('syncing', '클라우드 세이브파일 검색 중...');
-
-            try {
-                const response = await fetch('https://content.dropboxapi.com/2/files/download', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${dropboxToken}`,
-                        'Dropbox-API-Arg': JSON.stringify({ path: `/${currentRomName}.sav` })
-                    }
-                });
-
-                if (response.status === 200) {
-                    const blob = await response.blob();
-                    const fileReader = new FileReader();
-                    fileReader.onload = function() {
-                        // 세이브 데이터를 IndexedDB나 브라우저 내부 가상 세이브 저장소 공간에 미리 심어두기
-                        // EmulatorJS는 로딩 전에 localStorage나 IndexedDB의 특정 키에 저장해두면 자동 연동함
-                        try {
-                            localStorage.setItem(`EJS_${currentRomName}_save`, this.result);
-                            console.log("[CLOUD] 세이브 주입 성공!");
-                            updateCloudStatus('connected', '클라우드 연동 완료 (세이브 로드됨)');
-                        } catch (err) {
-                            console.error("[LOCALSTORAGE] 용량 초과 또는 쓰기 에러", err);
-                        }
-                        startEmulatorEngine();
-                    };
-                    fileReader.readAsText(blob);
-                } else if (response.status === 409) {
-                    // 세이브가 존재하지 않는 409 에러는 아주 자연스러운 현상입니다.
-                    console.log("[CLOUD] 기존 클라우드 세이브 없음. 새로 시작합니다.");
-                    updateCloudStatus('connected', '연동 완료 (클라우드 세이브 없음)');
-                    startEmulatorEngine();
-                } else {
-                    throw new Error("서버 에러");
-                }
-            } catch (error) {
-                console.warn("[CLOUD] 로드 실패, 그냥 시작합니다:", error);
-                updateCloudStatus('error', '연동 실패 (로컬 데이터로 시작)');
-                startEmulatorEngine();
-            }
-        }
-
-        // [핵심] 클라우드 세이브 강제 백업 프로세스
-        async function triggerSaveAction() {
-            if (!dropboxToken) {
-                showToast("⚠️ 드롭박스 토큰이 등록되어 있지 않아 클라우드에 저장할 수 없습니다.");
+                window.isEscSaving = false;
+                isGameRunning = false;
+                location.reload();
                 return;
             }
-
-            updateCloudStatus('syncing', '클라우드 데이터 백업 중...');
-
-            try {
-                // EmulatorJS의 가상 메모리 스토어에서 최신 로컬 세이브 데이터 추출
-                const localSaveData = localStorage.getItem(`EJS_${currentRomName}_save`);
-                if (!localSaveData) {
-                    showToast("💾 저장할 수 있는 최신 세이브 흔적이 로컬에 존재하지 않습니다.");
-                    updateCloudStatus('connected', '백업 대상 없음');
-                    return;
-                }
-
-                // 드롭박스 서버로 강제 밀어올리기 업로드 (409 충돌 방지를 위해 overwrite 설정 적용)
-                const response = await fetch('https://content.dropboxapi.com/2/files/upload', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${dropboxToken}`,
-                        'Content-Type': 'application/octet-stream',
-                        'Dropbox-API-Arg': JSON.stringify({
-                            path: `/${currentRomName}.sav`,
-                            mode: 'overwrite', // 무조건 덮어쓰기하여 409 충돌 원천 배제
-                            autorename: false,
-                            mute: true
-                        })
-                    },
-                    body: localSaveData
-                });
-
-                if (response.ok) {
-                    console.log("[CLOUD] 클라우드 업로드 성공!");
-                    updateCloudStatus('connected', '클라우드 세이브 완료');
-                    showToast("🚀 [CLOUD SAVE] 드롭박스 원격 서버에 완벽하게 백업되었습니다!");
-                } else {
-                    throw new Error("전송 실패");
-                }
-            } catch (error) {
-                console.error("[CLOUD] 백업 에러:", error);
-                updateCloudStatus('error', '백업 실패');
-                showToast("❌ [CLOUD ERROR] 드롭박스 연결 상태 및 토큰 유효성을 다시 확인하세요.");
-            }
-        }
-
-        // 커스텀 알림 토스트 띄우기 (Iframe 방해 없는 화면 중앙 상단 배치)
-        function showToast(message) {
-            const toast = document.createElement('div');
-            toast.className = "fixed top-8 left-1/2 -translate-x-1/2 z-50 bg-[#161920] border border-emerald-500 text-emerald-400 font-bold px-6 py-3 rounded-lg shadow-2xl text-xs tracking-wider animate-bounce";
-            toast.innerText = message;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 4000);
-        }
+            
+            if (e.key === 'f' || e.key === 'F') { e.preventDefault(); !document.fullscreenElement ? gameWrapper.requestFullscreen() : document.exitFullscreen(); }
+            if (e.key === 'g' || e.key === 'G') { e.preventDefault(); isGray = !isGray; isGray ? gameContainer.classList.add('retro-gray') : gameContainer.classList.remove('retro-gray'); }
+            if (e.key === 'n' || e.key === 'N') { e.preventDefault(); isNight = !isNight; isNight ? gameContainer.classList.add('night-mode') : gameContainer.classList.remove('night-mode'); }
+            if (e.key === 'b' || e.key === 'B') { e.preventDefault(); isRatio43 = !isRatio43; isRatio43 ? gameContainer.classList.add('retro-43') : gameContainer.classList.remove('retro-43'); }
+        }, true);
     </script>
 </body>
+
 </html>
