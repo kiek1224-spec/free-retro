@@ -156,6 +156,7 @@
     </style>
     <script src="https://unpkg.com/dropbox/dist/Dropbox-sdk.min.js"></script>
 </head>
+
 <body>
 
     <div id="control-panel">
@@ -166,7 +167,8 @@
     <div id="cloud-overlay">☁️ 클라우드 데이터를 동기화 중입니다...</div>
 
     <div id="cheat-sheet">
-        <span>F1</span> 실시간 세이브 | <span>ESC</span> 게임 종료(자동백업) | <span>F</span> 전체화면 | <span>G</span> 흑백 | <span>N</span> 야간모드 | <span>B</span> 4:3
+        <span>F1</span> 실시간 세이브 | <span>ESC</span> 게임 종료(클라우드 자동백업) | <span>F</span> 전체화면 | <span>G</span> 흑백감성 |
+        <span>N</span> 야간모드 | <span>B</span> 4:3화면비
     </div>
 
     <div id="app">
@@ -180,7 +182,8 @@
     <div id="game-wrapper">
         <div id="game-container"></div>
     </div>
-<script>
+
+    <script>
         console.log("[RETRO-CONTROL] 통합 브릿지 제어 탑 탑승 완료.");
         const DROPBOX_APP_KEY = 'mxdgeyz3f1eq5nm';
 
@@ -218,7 +221,7 @@
                 dbConnectBtn.classList.remove('connected');
                 dbConnectBtn.disabled = false;
                 dbDisconnectBtn.style.display = 'none';
-                console.log("[DROPBOX] Dropbox 미연결 - 로컬 저장만 사용");
+                console.log("[DROPBOX] Dropbox 미연결");
             }
         }
 
@@ -255,214 +258,12 @@
             if (e.dataTransfer?.files?.length > 0) { startEmulator(e.dataTransfer.files[0]); }
         });
 
-        // ✅ 파일 브라우저 다운로드 함수
-        function downloadFile(data, filename) {
-            const blob = new Blob([data], { type: "application/octet-stream" });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            console.log(`[SAVE] 브라우저 저장 완료: ${filename}`);
-        }
-
-        // ✅ Dropbox 업로드 함수
-        async function uploadToDropbox(filename, data) {
-            if (!dbx) {
-                console.log(`[DROPBOX] Dropbox 미연결 - ${filename} 업로드 스킵`);
-                return false;
-            }
-
-            try {
-                await dbx.filesUpload({ 
-                    path: `/${filename}`, 
-                    contents: data, 
-                    mode: 'overwrite' 
-                });
-                console.log(`[DROPBOX] 업로드 성공: ${filename}`);
-                return true;
-            } catch (err) {
-                console.error(`[DROPBOX] 업로드 실패 (${filename}):`, err);
-                return false;
-            }
-        }
-
-        // ✅ 날짜-시간 형식 생성
-        function getTimestamp() {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            const seconds = String(now.getSeconds()).padStart(2, '0');
-            return `${year}${month}${day}-${hours}${minutes}${seconds}`;
-        }
-
-        // ✅ 에뮬레이터 메모리에서 State 추출
-        function extractState() {
-            try {
-                if (window.EJS_emulator && window.EJS_emulator.saveState) {
-                    console.log("[EXTRACT] State 추출 시작...");
-                    
-                    // 에뮬레이터에서 현재 상태를 메모리에 저장
-                    if (typeof window.EJS_emulator.getCurrentState === 'function') {
-                        const state = window.EJS_emulator.getCurrentState();
-                        if (state) {
-                            console.log(`[EXTRACT] State 추출 성공 (크기: ${state.length || state.byteLength} bytes)`);
-                            return state;
-                        }
-                    }
-                    
-                    // 대체 방법: saveState 호출 후 콜백 대기
-                    return new Promise(resolve => {
-                        let stateData = null;
-                        const originalCallback = window.EJS_onSaveState;
-                        
-                        window.EJS_onSaveState = function(data) {
-                            stateData = data?.state;
-                            if (originalCallback) originalCallback(data);
-                        };
-                        
-                        window.EJS_emulator.saveState();
-                        
-                        // 500ms 대기
-                        setTimeout(() => {
-                            window.EJS_onSaveState = originalCallback;
-                            if (stateData) {
-                                console.log(`[EXTRACT] State 추출 성공 (크기: ${stateData.length || stateData.byteLength} bytes)`);
-                                resolve(stateData);
-                            } else {
-                                console.warn("[EXTRACT] State 추출 실패 - 데이터 없음");
-                                resolve(null);
-                            }
-                        }, 500);
-                    });
-                }
-            } catch (e) {
-                console.error("[EXTRACT] State 추출 중 오류:", e);
-            }
-            return null;
-        }
-
-        // ✅ 에뮬레이터 메모리에서 SRM 추출
-        function extractSRM() {
-            try {
-                if (window.EJS_emulator && window.EJS_emulator.saveSaveFiles) {
-                    console.log("[EXTRACT] SRM 추출 시작...");
-                    
-                    return new Promise(resolve => {
-                        let srmData = null;
-                        const originalCallback = window.EJS_onSaveSave;
-                        
-                        window.EJS_onSaveSave = function(data) {
-                            srmData = data?.save;
-                            if (originalCallback) originalCallback(data);
-                        };
-                        
-                        window.EJS_emulator.saveSaveFiles();
-                        
-                        // 500ms 대기
-                        setTimeout(() => {
-                            window.EJS_onSaveSave = originalCallback;
-                            if (srmData) {
-                                console.log(`[EXTRACT] SRM 추출 성공 (크기: ${srmData.length || srmData.byteLength} bytes)`);
-                                resolve(srmData);
-                            } else {
-                                console.warn("[EXTRACT] SRM 추출 실패 - 데이터 없음");
-                                resolve(null);
-                            }
-                        }, 500);
-                    });
-                }
-            } catch (e) {
-                console.error("[EXTRACT] SRM 추출 중 오류:", e);
-            }
-            return null;
-        }
-
-        // ✅ F1: 게임 화면 그대로 두고 State만 다운로드 + Dropbox 업로드
-        async function handleF1Save() {
-            console.log("[F1] State 저장 시작...");
-            
-            try {
-                const stateData = await extractState();
-                
-                if (stateData) {
-                    const timestamp = getTimestamp();
-                    const stateFilename = `${currentRomName}-${timestamp}.state`;
-
-                    // 1. 브라우저 저장 (우선순위 1)
-                    downloadFile(stateData, stateFilename);
-
-                    // 2. Dropbox 업로드 (우선순위 2)
-                    await uploadToDropbox(stateFilename, stateData);
-                    await uploadToDropbox(`${currentRomName}.state`, stateData);
-
-                    console.log("[F1] State 저장 완료!");
-                } else {
-                    console.warn("[F1] State 데이터를 가져올 수 없습니다");
-                }
-            } catch (e) {
-                console.error("[F1] 저장 중 오류:", e);
-            }
-        }
-
-        // ✅ ESC: State + SRM 저장 후 게임 종료
-        async function handleEscSave() {
-            console.log("[ESC] 게임 종료 및 세이브 시작...");
+        // ✅ ESC 시퀀스를 위한 Overlay 표시 브릿지
+        window.EJS_saveSaveFiles_Bridge = () => {
             cloudOverlay.style.display = 'flex';
-            cloudOverlay.innerText = "☁️ 게임 데이터를 저장 중입니다...";
-            isGameRunning = false;
-
-            try {
-                // 동시에 State와 SRM 추출
-                const [stateData, srmData] = await Promise.all([
-                    extractState(),
-                    extractSRM()
-                ]);
-
-                // State 저장
-                if (stateData) {
-                    const timestamp = getTimestamp();
-                    const stateFilename = `${currentRomName}-${timestamp}.state`;
-
-                    // 1. 브라우저 저장
-                    downloadFile(stateData, stateFilename);
-
-                    // 2. Dropbox 업로드
-                    await uploadToDropbox(stateFilename, stateData);
-                    await uploadToDropbox(`${currentRomName}.state`, stateData);
-                }
-
-                // SRM 저장
-                if (srmData) {
-                    const srmFilename = `${currentRomName}.srm`;
-
-                    // 1. 브라우저 저장
-                    downloadFile(srmData, srmFilename);
-
-                    // 2. Dropbox 업로드
-                    await uploadToDropbox(srmFilename, srmData);
-                }
-
-                console.log("[ESC] 저장 완료! 게임을 종료합니다.");
-                
-                // 게임 종료
-                setTimeout(() => {
-                    cloudOverlay.style.display = 'none';
-                    location.reload();
-                }, 1500);
-
-            } catch (e) {
-                console.error("[ESC] 저장 중 오류:", e);
-                cloudOverlay.style.display = 'none';
-                location.reload();
-            }
-        }
+            cloudOverlay.innerText = "☁️ 스냅샷 및 게임 데이터를 클라우드에 안전하게 저장 중입니다...";
+            console.log("[INDEX] ESC Overlay 표시됨");
+        };
 
         async function startEmulator(file) {
             if (!file) return;
@@ -471,6 +272,7 @@
 
             if (dbx) {
                 cloudOverlay.style.display = 'flex';
+                cloudOverlay.innerText = "☁️ 클라우드에서 세이브 파일을 로드 중입니다...";
                 try {
                     const response = await dbx.filesDownload({ path: `/${currentRomName}.state` });
                     window.EJS_saveState = new Uint8Array(await response.result.fileBlob.arrayBuffer());
@@ -518,30 +320,12 @@
             document.body.appendChild(script);           
         }
 
-        // ✅ 키보드 이벤트 핸들러
-        const keyboardHandler = (e) => {
+        // ✅ 게임 화면에서 F, G, N, B 키 처리 (GameManager의 F1/ESC와 독립)
+        window.addEventListener('keydown', (e) => {
             if (!isGameRunning) return;
 
-            // F1: State만 저장 (게임 화면 유지)
-            if (e.key === 'F1') {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log("[KEYBOARD] F1 키 감지!");
-                handleF1Save();
-                return false;
-            }
-
-            // ESC: State + SRM 저장 후 게임 종료
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log("[KEYBOARD] ESC 키 감지!");
-                handleEscSave();
-                return false;
-            }
-
-            // 다른 기능키
-            if (e.key.toLowerCase() === 'f') { 
+            // 다른 기능키 처리 (F1, ESC는 GameManager에서 처리)
+            if (e.key.toLowerCase() === 'f' && e.code !== 'F1') { 
                 e.preventDefault(); 
                 !document.fullscreenElement ? gameWrapper.requestFullscreen() : document.exitFullscreen(); 
             }
@@ -560,26 +344,8 @@
                 isRatio43 = !isRatio43; 
                 isRatio43 ? gameContainer.classList.add('retro-43') : gameContainer.classList.remove('retro-43'); 
             }
-        };
-
-        // 글로벌 키보드 리스너 등록
-        window.addEventListener('keydown', keyboardHandler, { capture: true, passive: false });
-        console.log("[INIT] 키보드 핸들러 등록 완료");
-
-        // ⚡ 에뮬레이터 키보드 독점 모드 해제
-        setInterval(() => {
-            if (isGameRunning && window.EJS_emulator) {
-                if (typeof window.EJS_emulator.setKeyboardEnabled === 'function' && !window.EJS_emulator.setKeyboardEnabled.isHooked) {
-                    const originalSetKeyboard = window.EJS_emulator.setKeyboardEnabled;
-                    
-                    window.EJS_emulator.setKeyboardEnabled = function(enabled) {
-                        originalSetKeyboard.call(window.EJS_emulator, false);
-                    };
-                    window.EJS_emulator.setKeyboardEnabled.isHooked = true;
-                    console.log("[EMULATOR] 키보드 독점 모드 해제 완료");
-                }
-            }
-        }, 1000);
+        });
     </script>
 </body>
+
 </html>
