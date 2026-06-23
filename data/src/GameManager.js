@@ -64,28 +64,25 @@ class EJS_GameManager {
         // 실행 후 즉시 복구 (SRAM 가로채기 해제)
         setTimeout(() => { rootWin.isF1Saving = false; }, 500);
         return false;
-        }
-                }, true);
+    }
+            }, true);
 
         // ESC 키 핸들러 (State + SRM 저장 후 종료)
-            window.addEventListener("keydown", (e) => {
+        window.addEventListener("keydown", (e) => {
             if (e.key === "Escape" || e.code === "Escape") {
-        console.log(`⌨️ [GameManager] ESC 감지 -> escapeAndSave() 실행`);
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // 🛡️ 인덱스 스크립트 가로채기 플래그 On
-        rootWin.isF1Saving = false;
-        rootWin.isEscSaving = true;
-        
-        // ESC 오버레이 표시 브릿지 가동
-        if (rootWin.EJS_saveSaveFiles_Bridge) {
-            rootWin.EJS_saveSaveFiles_Bridge();
-        }
-        
-        that.escapeAndSave();
-        return false;
-             }
+                console.log(`⌨️ [GameManager] ESC 감지 -> escapeAndSave() 실행`);
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // ESC 오버레이 표시
+                const rootWin = window.top || window;
+                if (rootWin.EJS_saveSaveFiles_Bridge) {
+                    rootWin.EJS_saveSaveFiles_Bridge();
+                }
+                
+                that.escapeAndSave();
+                return false;
+            }
         }, true);
 
         this.EJS.on("exit", () => {

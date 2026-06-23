@@ -100,11 +100,12 @@
             text-align: center;
             cursor: pointer;
             min-width: 320px;
+            transition: border-color 0.2s, background-color 0.2s;
         }
 
         .upload-area.dragover {
-            border-color: #00f0ff;
-            background: #252525;
+            border-color: #00f0ff !important;
+            background: #252525 !important;
         }
 
         #game-wrapper {
@@ -180,7 +181,8 @@
     <div id="game-wrapper">
         <div id="game-container"></div>
     </div>
-<script>
+
+    <script>
         console.log("[RETRO-CONTROL] 통합 브릿지 제어 탑 탑승 완료.");
         const DROPBOX_APP_KEY = 'mxdgeyz3f1eq5nm';
 
@@ -264,18 +266,29 @@
 
         initDropbox();
 
+        // 🖱️ 클릭 업로드 연동
         dropZone.addEventListener('click', () => document.getElementById('file-input').click());
         document.getElementById('file-input').addEventListener('change', (e) => {
             if (e.target.files?.length > 0) startEmulator(e.target.files[0]);
         });
 
+        // 🎴 드래그 앤 드롭 완벽 정상화
         window.addEventListener('dragover', (e) => e.preventDefault());
         window.addEventListener('drop', (e) => e.preventDefault());
-        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
+        
+        dropZone.addEventListener('dragover', (e) => { 
+            e.preventDefault(); 
+            dropZone.classList.add('dragover'); 
+        });
+        dropZone.addEventListener('dragleave', () => { 
+            dropZone.classList.remove('dragover'); 
+        });
         dropZone.addEventListener('drop', (e) => {
-            e.preventDefault(); dropZone.classList.remove('dragover');
-            if (e.dataTransfer?.files?.length > 0) { startEmulator(e.dataTransfer.files[0]); }
+            e.preventDefault(); 
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer?.files?.length > 0) { 
+                startEmulator(e.dataTransfer.files[0]); 
+            }
         });
 
         async function startEmulator(file) {
@@ -307,16 +320,13 @@
             const coreMap = { 'nes': 'nes', 'sfc': 'snes', 'smc': 'snes', 'gb': 'gb', 'gbc': 'gb', 'gba': 'gba' };
             window.EJS_core = coreMap[ext] || 'nes';
             
-            // 💡 깃허브 페이지 호스팅의 하위 리소스 정합성을 보장하기 위해 컨텍스트 상대 경로로 복원
             window.EJS_pathtodata = 'data/'; 
-            
             window.EJS_startOnLoaded = true;
             window.EJS_ShowQuickMenu = true;
             window.EJS_gameID = currentRomName;
             window.EJS_mysavestate = true;
             window.EJS_language = 'ko-KR';
 
-            // 💡 [추가] GameManager.js가 자식 프레임에서 ESC 신호를 던질 때 안전하게 수신할 통합 브릿지 개통
             const saveBridgeHandler = () => {
                 cloudOverlay.style.display = 'flex';
                 cloudOverlay.innerText = "☁️ 스냅샷 및 게임 데이터를 클라우드에 안전하게 저장 중입니다...";
@@ -326,12 +336,11 @@
                     if(window.top) window.top.isEscSaving = false;
                     isGameRunning = false;
                     location.reload();
-                }, 4500); // 4.5초 유예시간 확보 후 브라우저 안전 리로드
+                }, 4500);
             };
             window.EJS_saveSaveFiles_Bridge = saveBridgeHandler;
             window.top.EJS_saveSaveFiles_Bridge = saveBridgeHandler;
 
-            // F1 전역 트리거 바인딩 유지
             window.top.EJS_triggerSaveState = () => {
                 if (window.EJS_emulator && typeof window.EJS_emulator.saveState === 'function') {
                     window.EJS_emulator.saveState();
@@ -346,7 +355,6 @@
                 }
             }, 100);
 
-            // 🎯 에뮬레이터 엔진에서 추출된 State 바이너리가 낙하하는 순간 처리
             window.EJS_onSaveState = function (saveData) {
                 if (!saveData || !saveData.state) return;
 
@@ -354,7 +362,6 @@
                 const timestamp = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + "-" + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0') + String(now.getSeconds()).padStart(2, '0');
                 const targetFilename = `${currentRomName}-${timestamp}.state`;
 
-                // 1. .state 파일 브라우저 즉시 배출
                 try {
                     const blob = new Blob([saveData.state], { type: "application/octet-stream" });
                     const url = URL.createObjectURL(blob);
@@ -368,7 +375,6 @@
                     console.log("[RETRO-CONTROL] 스테이트 파일 디스크 저장 완료");
                 } catch (downloadErr) { console.error("로컬 파일 유실:", downloadErr); }
 
-                // 2. 드롭박스 동시 업로드 전송 처리
                 const activeDbx = dbx || window.dbx || (window.top && window.top.dbx);
                 if (activeDbx) {
                     console.log("[RETRO-CONTROL] 드롭박스로 바이너리 병렬 전송을 가동합니다.");
@@ -385,7 +391,7 @@
             script.src = 'data/loader.js';
             document.body.appendChild(script);           
         }
-      // 💡 중요: 세 번째 인자 'true'를 사용하여 캡처링 모드로 선점 장악
+
         window.addEventListener('keydown', (e) => {
             if (!isGameRunning) return;
 
@@ -395,23 +401,17 @@
             if (e.key.toLowerCase() === 'b') { e.preventDefault(); isRatio43 = !isRatio43; isRatio43 ? gameContainer.classList.add('retro-43') : gameContainer.classList.remove('retro-43'); }
         }, true);
 
-        // ⚡ [진짜 최종 치트키] 에뮬레이터의 키보드 독점권 자체를 박살내기
-        // 별도 JS 파일 로딩이 없으므로 CORS 에러가 원천적으로 불가능합니다.
         setInterval(() => {
             if (isGameRunning && window.EJS_emulator) {
-                // 에뮬레이터 코어가 키보드를 독점하려고 할 때 실행하는 함수를 직접 낚아챕니다.
                 if (typeof window.EJS_emulator.setKeyboardEnabled === 'function' && !window.EJS_emulator.setKeyboardEnabled.isHooked) {
                     const originalSetKeyboard = window.EJS_emulator.setKeyboardEnabled;
                     
                     window.EJS_emulator.setKeyboardEnabled = function(enabled) {
-                        // 에뮬레이터가 내부적으로 "나 키보드 독점할래(true)"라고 소리쳐도, 
-                        // 강제로 false를 주입하여 브라우저(부모창)의 키보드 권한을 항상 살려둡니다.
                         originalSetKeyboard.call(window.EJS_emulator, false);
                     };
                     window.EJS_emulator.setKeyboardEnabled.isHooked = true;
                     console.log("[엔진 제어 성공] 에뮬레이터의 키보드 독점 모드를 영원히 해제했습니다.");
                     
-                    // 독점이 완전히 풀렸으므로, 이제 window 전역에 진짜 F1, ESC 감시 리스너를 안전하게 심습니다.
                     window.addEventListener('keydown', function(event) {
                         if (event.key === 'F1') {
                             event.preventDefault();
@@ -423,7 +423,6 @@
                             event.preventDefault();
                             event.stopPropagation();
                             console.log("ESC 가로채기 완료: 드롭박스 통합 종료를 트리거합니다.");
-                            // index.html 상단에 이미 만들어 두신 ESC 팝업 및 드롭박스 업로드 이벤트를 발생시킵니다.
                             const escapeEvent = new CustomEvent('EJS_EscapePressed');
                             window.dispatchEvent(escapeEvent);
                         }
