@@ -386,8 +386,7 @@
             document.body.appendChild(script);           
         }
 
-        // 💡 중요: 세 번째 인자 'true'를 사용하여 캡처링 모드로 선점 장악
-        window.addEventListener('keydown', (e) => {
+       window.addEventListener('keydown', (e) => {
             if (!isGameRunning) return;
 
             if (e.key.toLowerCase() === 'f') { e.preventDefault(); !document.fullscreenElement ? gameWrapper.requestFullscreen() : document.exitFullscreen(); }
@@ -396,8 +395,8 @@
             if (e.key.toLowerCase() === 'b') { e.preventDefault(); isRatio43 = !isRatio43; isRatio43 ? gameContainer.classList.add('retro-43') : gameContainer.classList.remove('retro-43'); }
         }, true);
 
-      // ⚡ [최종 치트키] WASM 독점방을 완전히 깨부수고 키보드 권한을 index.html로 강제 귀속
-       setInterval(() => {
+        // ⚡ [최종 치트키] WASM 독점방을 완전히 깨부수고 키보드 권한을 index.html로 강제 귀속
+        setInterval(() => {
             if (isGameRunning) {
                 // 1. 브라우저 창 전체 포커스 강제 환기
                 window.focus();
