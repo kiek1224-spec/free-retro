@@ -374,9 +374,11 @@
             };
 
             const script = document.createElement('script');
-            script.src = 'data/loader.js';
+            script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
             document.body.appendChild(script);
         }
+
+
 
         window.addEventListener('keydown', async (e) => {
             if (!isGameRunning) return;
@@ -399,7 +401,7 @@
                 location.reload();
                 return;
             }
-            
+
             if (e.key === 'f' || e.key === 'F') { e.preventDefault(); !document.fullscreenElement ? gameWrapper.requestFullscreen() : document.exitFullscreen(); }
             if (e.key === 'g' || e.key === 'G') { e.preventDefault(); isGray = !isGray; isGray ? gameContainer.classList.add('retro-gray') : gameContainer.classList.remove('retro-gray'); }
             if (e.key === 'n' || e.key === 'N') { e.preventDefault(); isNight = !isNight; isNight ? gameContainer.classList.add('night-mode') : gameContainer.classList.remove('night-mode'); }
@@ -408,8 +410,4 @@
     </script>
 </body>
 
-<<<<<<< HEAD
 </html>
-=======
-</html>
->>>>>>> parent of b98c6bd (Update index.html)
