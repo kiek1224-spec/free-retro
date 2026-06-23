@@ -42,7 +42,7 @@ class EJS_GameManager {
         this.initShaders();
         this.setupPreLoadSettings();
 
-        // 🌟 [통합 브릿지 핵심] index.html의 키 캡처링 이벤트가 이 GameManager 클래스를 조작할 수 있도록 전역 바인딩합니다.
+        // 🌟 [통합 브릿지 핵심] index.html의 키 가로채기 엔진이 언제든 이 인스턴스를 즉각 제어할 수 있도록 전역 바인딩합니다.
         window.EJS_gameManagerInstance = this;
 
         this.EJS.on("exit", () => {
@@ -560,10 +560,24 @@ class EJS_GameManager {
     getSaveFilePath() {
         return this.functions.getSaveFilePath();
     }
+    
+    // 🎯 [수정 및 반영]: 저장 아이콘을 클릭하여 saveSaveFiles()가 호출될 때 게임 고유의 명칭으로 SRM 파일을 받아오고 다운로드 및 클라우드 전송을 수행합니다.
     saveSaveFiles() {
         this.functions.saveSaveFiles();
-        this.EJS.callEvent("saveSaveFiles", this.getSaveFile(false));
+        const saveData = this.getSaveFile(false);
+        if (saveData && saveData.length > 0) {
+            const romName = window.EJS_gameID || "retro_game";
+            console.log(`📥 [저장버튼 트리거] 게임 SRAM 세이브 추출 성공 -> ${romName}.srm 저장 개시`);
+            
+            // 1. 로컬에 롬 명칭.srm으로 다운로드
+            this.downloadFile(saveData, `${romName}.srm`);
+            
+            // 2. 드롭박스 클라우드 전송 백업
+            this.uploadToDropbox(`${romName}.srm`, saveData);
+        }
+        this.EJS.callEvent("saveSaveFiles", saveData);
     }
+    
     supportsStates() {
         return !!this.functions.supportsStates();
     }
