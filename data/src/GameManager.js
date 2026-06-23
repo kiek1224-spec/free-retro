@@ -42,45 +42,50 @@ class EJS_GameManager {
         this.initShaders();
         this.setupPreLoadSettings();
 
-        // 1. [F1 키 감시탑] - 기존 사용자님의 소중한 F1 로직 그대로 보존 (독립 등록)
+        // =========================================================
+        // 🎯 [F1 / ESC 이벤트 캡처링 기반 포커스 강제 장악 커스텀 엔진]
+        // =========================================================
+
+        // 1. F1 키 선점 가로채기 리스너 (WASM이 이벤트를 먹기 전에 최상위에서 차단)
         window.addEventListener("keydown", (e) => {
             if (e.key === "F1" || e.code === "F1") {
-                console.log(`⌨️ [GameManager] F1 감지 -> 상태 저장 파일 커스텀 시퀀스 가동`);
+                console.log(`⌨️ [GameManager] F1 포커스 강제 탈취 -> State 전용 시퀀스 가동`);
                 e.preventDefault();
-                this.screenshotAndSave();
-            }
-        }, true);
+                e.stopPropagation(); // 에뮬레이터 내부 C++ 코어 전파 원천 차단
 
-      // 1. [F1 키 감시탑] - 캡처링 스코프 진입 및 최상위 프레임 윈도우 우회 통신망 연결
-        window.addEventListener("keydown", (e) => {
-            if (e.key === "F1" || e.code === "F1") {
-                console.log(`⌨️ [GameManager] F1 감지 -> 상태 저장 파일 커스텀 시퀀스 가동`);
-                e.preventDefault();
-                e.stopPropagation();
-
-                const rootWin = window.top || window;
-                rootWin.isF1Saving = true;
-                rootWin.isEscSaving = false;
+                // 전역 스코프 안전 바인딩 통합 처리
+                window.isF1Saving = true;
+                window.isEscSaving = false;
+                if (window.top) {
+                    window.top.isF1Saving = true;
+                    window.top.isEscSaving = false;
+                }
 
                 this.screenshotAndSave();
             }
-        }, true);
+        }, true); // 💡 세 번째 인자 true로 캡처링 단계에서 선점
 
-        // 2. [ESC 키 독립 감시탑] - 이벤트를 가로채 에뮬레이터가 먹어버리기 전에 처리 (true 인자 필수)
+        // 2. ESC 키 선점 가로채기 리스너 (종료 + SRM 버퍼 기화 및 클라우드 업로드)
         const that = this;
         window.addEventListener("keydown", (e) => {
             if (e.key === "Escape" || e.code === "Escape") {
-                console.log("⌨️ [GameManager] ESC 단독 감지 -> 독립 종료 시퀀스 가동");
+                console.log("⌨️ [GameManager] ESC 포커스 강제 탈취 -> 통합 종료 시퀀스 가동");
                 e.preventDefault();
                 e.stopPropagation();
 
-                const rootWin = window.top || window;
-                rootWin.isF1Saving = false;
-                rootWin.isEscSaving = true;
+                window.isF1Saving = false;
+                window.isEscSaving = true;
+                if (window.top) {
+                    window.top.isF1Saving = false;
+                    window.top.isEscSaving = true;
+                }
 
-                // 부모창 브릿지 레이어 작동
+                // 💡 index.html에 등록된 ESC 백업UI 오버레이를 즉시 트리거
+                const rootWin = window.top || window;
                 if (rootWin.EJS_saveSaveFiles_Bridge) {
                     rootWin.EJS_saveSaveFiles_Bridge();
+                } else if (window.EJS_saveSaveFiles_Bridge) {
+                    window.EJS_saveSaveFiles_Bridge();
                 }
 
                 if (typeof that.escapeAndSave === 'function') {
@@ -89,10 +94,10 @@ class EJS_GameManager {
                     console.error("❌ [Engine Error] escapeAndSave 함수가 매핑되지 않았습니다.");
                 }
 
-                // C++ 코어 내부 백업 명령을 트리거하여 .srm 파일 즉각 방출 유도
+                // 가상 파일 시스템 루트의 지연 버퍼를 밀어내 .srm 파일 강제 배출
                 that.saveSaveFiles();
             }
-        }, true);
+        }, true); // 💡 세 번째 인자 true로 캡처링 단계에서 선점
     }
 
     // 헬퍼 메서드: 로컬 브라우저 디스크 다운로드 처리 전용 (지연 소멸자 확보)

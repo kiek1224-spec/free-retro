@@ -180,8 +180,7 @@
     <div id="game-wrapper">
         <div id="game-container"></div>
     </div>
-
-   <script>
+<script>
         console.log("[RETRO-CONTROL] 통합 브릿지 제어 탑 탑승 완료.");
         const DROPBOX_APP_KEY = 'mxdgeyz3f1eq5nm';
 
@@ -200,7 +199,7 @@
         const dbDisconnectBtn = document.getElementById('db-disconnect-btn');
         const cloudOverlay = document.getElementById('cloud-overlay');
 
-        // 🔒 다운로드 도청 및 가로채기 엔진 고도화
+        // 🔒 다운로드 가로채기 엔진 (SRAM 중복 배출 방어)
         const originalCreateElement = document.createElement;
         document.createElement = function (tagName, options) {
             const el = originalCreateElement.call(document, tagName, options);
@@ -212,10 +211,9 @@
                         return;
                     }
                     if (window.isEscSaving && el.download && el.download.endsWith('.srm')) {
-                        console.log(`[RETRO-CONTROL] ⏱️ ESC 모드 감지: SRM 파일 800ms 딜레이 우회 발사 예정`);
+                        console.log(`[RETRO-CONTROL] ⏱️ ESC 모드 감지: SRM 파일 800ms 딜레이 우회 발사`);
                         el.download = `${currentRomName}.srm`;
                         setTimeout(() => {
-                            console.log(`[RETRO-CONTROL] 🚀 우회 타격 완료: ${el.download}`);
                             originalClick.call(el);
                         }, 800);
                         return;
@@ -237,7 +235,7 @@
             }
             if (dropboxToken) {
                 dbx = new Dropbox.Dropbox({ accessToken: dropboxToken });
-                window.dbx = dbx; // 전역 스코프 바인딩 보장
+                window.dbx = dbx;
                 dbConnectBtn.innerText = '☁️ Dropbox 연동 완료';
                 dbConnectBtn.classList.add('connected');
                 dbConnectBtn.disabled = true;
@@ -308,23 +306,36 @@
             const ext = file.name.split('.').pop().toLowerCase();
             const coreMap = { 'nes': 'nes', 'sfc': 'snes', 'smc': 'snes', 'gb': 'gb', 'gbc': 'gb', 'gba': 'gba' };
             window.EJS_core = coreMap[ext] || 'nes';
-            window.EJS_pathtodata = 'data/'; // GitHub Pages 상대경로 매핑 안정화
+            
+            // 💡 깃허브 페이지 호스팅의 하위 리소스 정합성을 보장하기 위해 컨텍스트 상대 경로로 복원
+            window.EJS_pathtodata = 'data/'; 
+            
             window.EJS_startOnLoaded = true;
             window.EJS_ShowQuickMenu = true;
             window.EJS_gameID = currentRomName;
             window.EJS_mysavestate = true;
             window.EJS_language = 'ko-KR';
 
-            // 💡 GameManager에서 안전하게 노크할 수 있는 최상위 오버레이 브릿지 개통
-            window.EJS_saveSaveFiles_Bridge = () => {
+            // 💡 [추가] GameManager.js가 자식 프레임에서 ESC 신호를 던질 때 안전하게 수신할 통합 브릿지 개통
+            const saveBridgeHandler = () => {
                 cloudOverlay.style.display = 'flex';
                 cloudOverlay.innerText = "☁️ 스냅샷 및 게임 데이터를 클라우드에 안전하게 저장 중입니다...";
                 
                 setTimeout(() => {
                     window.isEscSaving = false;
+                    if(window.top) window.top.isEscSaving = false;
                     isGameRunning = false;
                     location.reload();
-                }, 4500); // 파일 다운로드 및 업로드 확보를 위한 4.5초 유예 후 리로드
+                }, 4500); // 4.5초 유예시간 확보 후 브라우저 안전 리로드
+            };
+            window.EJS_saveSaveFiles_Bridge = saveBridgeHandler;
+            window.top.EJS_saveSaveFiles_Bridge = saveBridgeHandler;
+
+            // F1 전역 트리거 바인딩 유지
+            window.top.EJS_triggerSaveState = () => {
+                if (window.EJS_emulator && typeof window.EJS_emulator.saveState === 'function') {
+                    window.EJS_emulator.saveState();
+                }
             };
 
             const engineHook = setInterval(() => {
@@ -335,7 +346,7 @@
                 }
             }, 100);
 
-            // 🎯 에뮬레이터 코어 내부에서 세이브 상태가 출력될 때 처리
+            // 🎯 에뮬레이터 엔진에서 추출된 State 바이너리가 낙하하는 순간 처리
             window.EJS_onSaveState = function (saveData) {
                 if (!saveData || !saveData.state) return;
 
@@ -343,7 +354,7 @@
                 const timestamp = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + "-" + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0') + String(now.getSeconds()).padStart(2, '0');
                 const targetFilename = `${currentRomName}-${timestamp}.state`;
 
-                // 1. .state 파일 브라우저 다운로드 배출
+                // 1. .state 파일 브라우저 즉시 배출
                 try {
                     const blob = new Blob([saveData.state], { type: "application/octet-stream" });
                     const url = URL.createObjectURL(blob);
@@ -357,11 +368,13 @@
                     console.log("[RETRO-CONTROL] 스테이트 파일 디스크 저장 완료");
                 } catch (downloadErr) { console.error("로컬 파일 유실:", downloadErr); }
 
-                // 2. 드롭박스 전송
-                if (dbx) {
+                // 2. 드롭박스 동시 업로드 전송 처리
+                const activeDbx = dbx || window.dbx || (window.top && window.top.dbx);
+                if (activeDbx) {
+                    console.log("[RETRO-CONTROL] 드롭박스로 바이너리 병렬 전송을 가동합니다.");
                     const paths = [`/${currentRomName}.state`, `/${targetFilename}`];
                     paths.forEach(savePath => {
-                        dbx.filesUpload({ path: savePath, contents: saveData.state, mode: 'overwrite' })
+                        activeDbx.filesUpload({ path: savePath, contents: saveData.state, mode: 'overwrite' })
                             .then(() => console.log(`[클라우드 전송성공]: ${savePath}`))
                             .catch(e => console.error("[클라우드 실패]:", e));
                     });
@@ -373,11 +386,10 @@
             document.body.appendChild(script);           
         }
 
-        // 💡 GitHub Pages 캔버스 포커스 탈취 방어용 캡처링 리스너 고도화
+        // 💡 중요: 세 번째 인자 'true'를 사용하여 캡처링 모드로 선점 장악
         window.addEventListener('keydown', (e) => {
             if (!isGameRunning) return;
 
-            // 외곽 셰이더 및 화면 비율 제어 제어탑
             if (e.key.toLowerCase() === 'f') { e.preventDefault(); !document.fullscreenElement ? gameWrapper.requestFullscreen() : document.exitFullscreen(); }
             if (e.key.toLowerCase() === 'g') { e.preventDefault(); isGray = !isGray; isGray ? gameContainer.classList.add('retro-gray') : gameContainer.classList.remove('retro-gray'); }
             if (e.key.toLowerCase() === 'n') { e.preventDefault(); isNight = !isNight; isNight ? gameContainer.classList.add('night-mode') : gameContainer.classList.remove('night-mode'); }
