@@ -50,7 +50,7 @@ class EJS_GameManager {
                 e.preventDefault();
                 this.screenshotAndSave();
             }
-        });
+        }, true);
 
         // 2. [ESC 키 독립 감시탑] - F1과 완벽 분리 및 TypeError 방지용 that 바인딩 구현
         const that = this;
@@ -76,7 +76,7 @@ class EJS_GameManager {
                 // C++ 코어 내부의 배출 명령을 명시적으로 실행하여 .srm 파일 생성을 유도
                 that.saveSaveFiles();
             }
-        });
+        }, true);
 
         this.EJS.on("exit", () => {
             if (!this.EJS.failedToStart) {
