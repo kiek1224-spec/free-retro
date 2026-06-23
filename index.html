@@ -395,6 +395,11 @@
             if (e.key.toLowerCase() === 'n') { e.preventDefault(); isNight = !isNight; isNight ? gameContainer.classList.add('night-mode') : gameContainer.classList.remove('night-mode'); }
             if (e.key.toLowerCase() === 'b') { e.preventDefault(); isRatio43 = !isRatio43; isRatio43 ? gameContainer.classList.add('retro-43') : gameContainer.classList.remove('retro-43'); }
         }, true);
+        setInterval(() => {
+    if (isGameRunning) {
+        window.focus();
+        document.getElementById('game-wrapper').focus();
+    }}, 1000);
     </script>
 </body>
 </html>
