@@ -385,6 +385,7 @@
             script.src = 'data/loader.js';
             document.body.appendChild(script);           
         }
+      // 💡 중요: 세 번째 인자 'true'를 사용하여 캡처링 모드로 선점 장악
         window.addEventListener('keydown', (e) => {
             if (!isGameRunning) return;
 
@@ -394,28 +395,42 @@
             if (e.key.toLowerCase() === 'b') { e.preventDefault(); isRatio43 = !isRatio43; isRatio43 ? gameContainer.classList.add('retro-43') : gameContainer.classList.remove('retro-43'); }
         }, true);
 
-        // ⚡ [최종 치트키] WASM 독점방을 완전히 깨부수고 키보드 권한을 index.html로 강제 귀속
+        // ⚡ [진짜 최종 치트키] 에뮬레이터의 키보드 독점권 자체를 박살내기
+        // 별도 JS 파일 로딩이 없으므로 CORS 에러가 원천적으로 불가능합니다.
         setInterval(() => {
-            if (isGameRunning) {
-                // 1. 브라우저 창 전체 포커스 강제 환기
-                window.focus();
-                
-                // 2. 에뮬레이터가 들어있는 컨테이너 포커스 강제 획득
-                const wrapper = document.getElementById('game-wrapper');
-                if (wrapper) {
-                    wrapper.focus();
+            if (isGameRunning && window.EJS_emulator) {
+                // 에뮬레이터 코어가 키보드를 독점하려고 할 때 실행하는 함수를 직접 낚아챕니다.
+                if (typeof window.EJS_emulator.setKeyboardEnabled === 'function' && !window.EJS_emulator.setKeyboardEnabled.isHooked) {
+                    const originalSetKeyboard = window.EJS_emulator.setKeyboardEnabled;
+                    
+                    window.EJS_emulator.setKeyboardEnabled = function(enabled) {
+                        // 에뮬레이터가 내부적으로 "나 키보드 독점할래(true)"라고 소리쳐도, 
+                        // 강제로 false를 주입하여 브라우저(부모창)의 키보드 권한을 항상 살려둡니다.
+                        originalSetKeyboard.call(window.EJS_emulator, false);
+                    };
+                    window.EJS_emulator.setKeyboardEnabled.isHooked = true;
+                    console.log("[엔진 제어 성공] 에뮬레이터의 키보드 독점 모드를 영원히 해제했습니다.");
+                    
+                    // 독점이 완전히 풀렸으므로, 이제 window 전역에 진짜 F1, ESC 감시 리스너를 안전하게 심습니다.
+                    window.addEventListener('keydown', function(event) {
+                        if (event.key === 'F1') {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            console.log("F1 가로채기 완료: 세이브 파일을 강제로 추출합니다.");
+                            window.EJS_emulator.saveSaveFiles();
+                        }
+                        if (event.key === 'Escape') {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            console.log("ESC 가로채기 완료: 드롭박스 통합 종료를 트리거합니다.");
+                            // index.html 상단에 이미 만들어 두신 ESC 팝업 및 드롭박스 업로드 이벤트를 발생시킵니다.
+                            const escapeEvent = new CustomEvent('EJS_EscapePressed');
+                            window.dispatchEvent(escapeEvent);
+                        }
+                    }, { capture: true, passive: false });
                 }
-
-                // 3. 🔥 핵심: 에뮬레이터 내부 캔버스(Canvas)의 키보드 가로채기 차단
-                const canvases = document.querySelectorAll('#game-container canvas, canvas');
-                canvases.forEach(canvas => {
-                    if (canvas && document.activeElement === canvas) {
-                        canvas.blur(); // 캔버스의 포커스를 강제로 해제(무력화)
-                        window.focus(); // 권한을 부모(윈도우)로 즉시 회수
-                    }
-                });
             }
-        }, 500); // 💡 0.5초(500ms) 주기로 촘촘하게 감시
+        }, 1000);
     </script>
 </body>
 </html>
