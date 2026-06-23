@@ -30,7 +30,7 @@ class EJS_GameManager {
             setSlowMotionRatio: this.Module.cwrap("set_sm_ratio", "null", ["number"]),
             getFrameNum: this.Module.cwrap("get_current_frame_count", "number", [""]),
             setVSync: this.Module.cwrap("set_vsync", "null", ["number"]),
-            setVideoRoation: this.Module.cwrap("set_video_rotation", "null", ["number"]),
+            setVideoRotation: this.Module.cwrap("set_video_rotation", "null", ["number"]),
             getVideoDimensions: this.Module.cwrap("get_video_dimensions", "number", ["string"]),
             setKeyboardEnabled: this.Module.cwrap("ejs_set_keyboard_enabled", "null", ["number"]),
             setControllerPortDevice: this.Module.cwrap("ejs_set_controller_port_device", "null", ["number", "number"]),
@@ -42,34 +42,8 @@ class EJS_GameManager {
         this.initShaders();
         this.setupPreLoadSettings();
 
-        // =========================================================
-        // 🎯 [F1 / ESC 이벤트 캡처링]
-        // =========================================================
-        const that = this;
-
-        window.addEventListener("keydown", (e) => {
-            if (e.key === "F1" || e.code === "F1") {
-                console.log(`⌨️ [GameManager] F1 감지 -> screenshotAndSave()`);
-                e.preventDefault();
-                e.stopPropagation();
-                that.screenshotAndSave();
-                return false;
-            }
-        }, true);
-
-        window.addEventListener("keydown", (e) => {
-            if (e.key === "Escape" || e.code === "Escape") {
-                console.log(`⌨️ [GameManager] ESC 감지 -> escapeAndSave()`);
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const rootWin = window.top || window;
-                if (rootWin.EJS_saveSaveFiles_Bridge) rootWin.EJS_saveSaveFiles_Bridge();
-                
-                that.escapeAndSave();
-                return false;
-            }
-        }, true);
+        // 🌟 [통합 브릿지 핵심] index.html의 키 캡처링 이벤트가 이 GameManager 클래스를 조작할 수 있도록 전역 바인딩합니다.
+        window.EJS_gameManagerInstance = this;
 
         this.EJS.on("exit", () => {
             if (!this.EJS.failedToStart) {
@@ -80,12 +54,16 @@ class EJS_GameManager {
             this.toggleMainLoop(0);
             this.FS.unmount("/data/saves");
             setTimeout(() => {
-                try { this.Module.abort(); } catch (e) { console.warn(e); }
+                try {
+                    this.Module.abort();
+                } catch (e) {
+                    console.warn(e);
+                };
             }, 1000);
         });
     }
 
-    // ✅ 파일 다운로드 헬퍼
+    // ✅ 파일 로컬 다운로드 가이드
     downloadFile(data, filename) {
         try {
             const blob = new Blob([data], { type: "application/octet-stream" });
@@ -101,13 +79,13 @@ class EJS_GameManager {
                 URL.revokeObjectURL(url);
             }, 20000);
 
-            console.log(`📥 [GameManager] 파일 다운로드: ${filename}`);
+            console.log(`📥 [GameManager] 다운로드 성공: ${filename}`);
         } catch (err) {
-            console.error("❌ [GameManager] 다운로드 실패:", err);
+            console.error("❌ [GameManager] 다운로드 오류:", err);
         }
     }
 
-    // ✅ 날짜-시간 형식 생성
+    // ✅ 타임스탬프 문자열 포맷터
     getTimestamp() {
         const now = new Date();
         const year = now.getFullYear();
@@ -119,13 +97,12 @@ class EJS_GameManager {
         return `${year}${month}${day}-${hours}${minutes}${seconds}`;
     }
 
-    // ✅ Dropbox 업로드
+    // ✅ Dropbox 전용 업로드
     async uploadToDropbox(filename, data) {
-        const targetWindow = window.parent || window.top || window.opener || window;
-        const activeDbx = targetWindow.dbx || window.dbx;
+        const activeDbx = window.dbx;
 
         if (!activeDbx) {
-            console.warn("⚠️ [GameManager] Dropbox 미연결 - 업로드 스킵");
+            console.warn("⚠️ [Dropbox] 연결되지 않음 - 클라우드 저장을 스킵합니다.");
             return;
         }
 
@@ -135,20 +112,20 @@ class EJS_GameManager {
                 contents: data,
                 mode: 'overwrite'
             });
-            console.log(`✅ [Dropbox] 업로드 성공: ${filename}`);
+            console.log(`✅ [Dropbox] 동기화 성공: ${filename}`);
         } catch (err) {
-            console.error(`❌ [Dropbox] 업로드 실패 (${filename}):`, err);
+            console.error(`❌ [Dropbox] 업로드 에러 (${filename}):`, err);
         }
     }
 
-    // ✅ F1: State만 저장
+    // 🔥 [F1 기능] 실시간 스냅샷 세이브
     screenshotAndSave() {
         try {
-            console.log("[F1] screenshotAndSave() 시작");
+            console.log("📥 [GameManager] screenshotAndSave() 수동 트리거 개시");
             const rawState = this.getState();
             
             if (!rawState) {
-                console.warn("⚠️ [F1] State 데이터 없음");
+                console.warn("⚠️ [F1] 가져올 수 있는 스냅샷 데이터(State)가 없습니다.");
                 return;
             }
 
@@ -156,29 +133,27 @@ class EJS_GameManager {
             const timestamp = this.getTimestamp();
             const filename = `${romName}-${timestamp}.state`;
 
-            console.log(`[F1] State 추출 완료 (크기: ${rawState.length} bytes)`);
-
-            // 1. 브라우저 다운로드 (우선순위 1)
+            // 1. 브라우저 로컬 저장
             this.downloadFile(rawState, filename);
 
-            // 2. Dropbox 업로드 (비동기)
+            // 2. 드롭박스 동시 병렬 전송
             this.uploadToDropbox(filename, rawState);
             this.uploadToDropbox(`${romName}.state`, rawState);
 
-            console.log("[F1] 완료!");
+            console.log("📥 [GameManager] F1 수동 세이브 처리 완료!");
         } catch (e) {
-            console.error("❌ [F1] 오류:", e);
+            console.error("❌ [GameManager] F1 세이브 에러:", e);
         }
     }
 
-    // ✅ ESC: State + SRM 저장 후 종료
+    // 🔥 [ESC 기능] 데이터 백업 후 강제 안전 종료
     escapeAndSave() {
         try {
-            console.log("[ESC] escapeAndSave() 시작");
+            console.log("📥 [GameManager] escapeAndSave() 종료 전 백업 트리거 개시");
             const rawState = this.getState();
             
             if (!rawState) {
-                console.warn("⚠️ [ESC] State 데이터 없음");
+                console.warn("⚠️ [ESC] 세이브 데이터(State)를 추출할 수 없습니다.");
                 return;
             }
 
@@ -187,24 +162,18 @@ class EJS_GameManager {
             const stateFilename = `${romName}-${timestamp}.state`;
             const fixedFilename = `${romName}.state`;
 
-            console.log(`[ESC] State 추출 완료 (크기: ${rawState.length} bytes)`);
-
-            // 1. State 파일 다운로드
+            // 1. 스테이트 로컬 디스크 다운로드
             this.downloadFile(rawState, stateFilename);
 
-            // 2. SRM 파일 추출 및 다운로드
+            // 2. SRAM(게임 내 자체 세이브) 데이터 디스크 다운로드
             const srmData = this.getSaveFile(true);
             if (srmData) {
-                console.log(`[ESC] SRM 추출 완료 (크기: ${srmData.length} bytes)`);
                 setTimeout(() => {
-                    console.log("⏱️ [ESC] 800ms 후 SRM 다운로드");
                     this.downloadFile(srmData, `${romName}.srm`);
                 }, 800);
-            } else {
-                console.warn("⚠️ [ESC] SRM 데이터 없음");
             }
 
-            // 3. Dropbox 업로드
+            // 3. 드롭박스 최종 클라우드 동기화 전송
             this.uploadToDropbox(fixedFilename, rawState);
             this.uploadToDropbox(stateFilename, rawState);
             
@@ -212,16 +181,15 @@ class EJS_GameManager {
                 this.uploadToDropbox(`${romName}.srm`, srmData);
             }
 
-            console.log("[ESC] 저장 완료!");
+            console.log("📥 [GameManager] 클라우드 전송 및 다운로드 완료! 2초 뒤 시스템을 리로드합니다.");
 
-            // 4. 게임 종료
+            // 4. 안전한 시간 차 새로고침 종료
             setTimeout(() => {
-                console.log("[ESC] 게임 종료 (새로고침)");
                 location.reload();
             }, 2000);
 
         } catch (e) {
-            console.error("❌ [ESC] 오류:", e);
+            console.error("❌ [GameManager] ESC 처리 오류:", e);
             location.reload();
         }
     }
