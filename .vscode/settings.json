@@ -1,9 +1,0 @@
-{
-    "diffEditor.ignoreTrimWhitespace": false,
-    "editor.formatOnPaste": true,
-    "editor.formatOnSave": true,
-    "editor.formatOnSaveMode": "modifications",
-    
-    "eslint.enable": true,
-    "eslint.lintTask.enable": true
-}
