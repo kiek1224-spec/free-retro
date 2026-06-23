@@ -45,35 +45,47 @@ class EJS_GameManager {
         // =========================================================
         // 🎯 [F1 / ESC 이벤트 캡처링 - 최우선 선점 핸들러]
         // =========================================================
-        const that = this;
+       const that = this;
+       const rootWin = window.top || window;
 
-        // F1 키 핸들러 (State만 저장)
+// F1 키 핸들러 (State만 저장)
         window.addEventListener("keydown", (e) => {
             if (e.key === "F1" || e.code === "F1") {
-                console.log(`⌨️ [GameManager] F1 감지 -> screenshotAndSave() 실행`);
-                e.preventDefault();
-                e.stopPropagation();
-                that.screenshotAndSave();
-                return false;
-            }
-        }, true);
+        console.log(`⌨️ [GameManager] F1 감지 -> screenshotAndSave() 실행`);
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // 🛡️ 인덱스 스크립트 가로채기 플래그 On
+        rootWin.isF1Saving = true;
+        rootWin.isEscSaving = false;
+        
+        that.screenshotAndSave();
+        
+        // 실행 후 즉시 복구 (SRAM 가로채기 해제)
+        setTimeout(() => { rootWin.isF1Saving = false; }, 500);
+        return false;
+        }
+                }, true);
 
         // ESC 키 핸들러 (State + SRM 저장 후 종료)
-        window.addEventListener("keydown", (e) => {
+            window.addEventListener("keydown", (e) => {
             if (e.key === "Escape" || e.code === "Escape") {
-                console.log(`⌨️ [GameManager] ESC 감지 -> escapeAndSave() 실행`);
-                e.preventDefault();
-                e.stopPropagation();
-                
-                // ESC 오버레이 표시
-                const rootWin = window.top || window;
-                if (rootWin.EJS_saveSaveFiles_Bridge) {
-                    rootWin.EJS_saveSaveFiles_Bridge();
-                }
-                
-                that.escapeAndSave();
-                return false;
-            }
+        console.log(`⌨️ [GameManager] ESC 감지 -> escapeAndSave() 실행`);
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // 🛡️ 인덱스 스크립트 가로채기 플래그 On
+        rootWin.isF1Saving = false;
+        rootWin.isEscSaving = true;
+        
+        // ESC 오버레이 표시 브릿지 가동
+        if (rootWin.EJS_saveSaveFiles_Bridge) {
+            rootWin.EJS_saveSaveFiles_Bridge();
+        }
+        
+        that.escapeAndSave();
+        return false;
+             }
         }, true);
 
         this.EJS.on("exit", () => {

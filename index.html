@@ -5,158 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Retro Emulator (Fixed Engine Build)</title>
     <style>
-        body,
-        html {
-            height: 100%;
-            background: black;
-            margin: 0;
-            overflow: hidden;
-        }
-
+        body, html { height: 100%; background: black; margin: 0; overflow: hidden; }
         #cheat-sheet {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.75);
-            color: #aaa;
-            padding: 8px 18px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-family: sans-serif;
-            z-index: 99999;
-            display: none;
-            white-space: nowrap;
-            opacity: 1;
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.75); color: #aaa; padding: 8px 18px;
+            border-radius: 20px; font-size: 12px; font-family: sans-serif;
+            z-index: 99999; display: none; white-space: nowrap; opacity: 1;
             transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
-
-        #cheat-sheet span {
-            color: #fff;
-            font-weight: bold;
-            margin-right: 10px;
-        }
-
-        #control-panel {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            z-index: 100000;
-            display: flex;
-            gap: 8px;
-        }
-
+        #cheat-sheet span { color: #fff; font-weight: bold; margin-right: 10px; }
+        #control-panel { position: absolute; top: 15px; right: 15px; z-index: 100000; display: flex; gap: 8px; }
         .db-btn {
-            background: #0061ff;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-weight: bold;
-            cursor: pointer;
-            font-family: sans-serif;
-            font-size: 13px;
-            transition: background 0.2s;
+            background: #0061ff; color: white; border: none; padding: 8px 16px;
+            border-radius: 6px; font-weight: bold; cursor: pointer; font-family: sans-serif;
+            font-size: 13px; transition: background 0.2s;
         }
-
-        .db-btn:hover {
-            background: #004bce;
-        }
-
-        .db-btn.connected {
-            background: #42b883;
-            cursor: default;
-        }
-
-        .db-disconnect-btn {
-            background: #e04141;
-            color: white;
-            display: none;
-        }
-
-        .db-disconnect-btn:hover {
-            background: #c03434;
-        }
-
+        .db-btn:hover { background: #004bce; }
+        .db-btn.connected { background: #42b883; cursor: default; }
+        .db-disconnect-btn { background: #e04141; color: white; display: none; }
+        .db-disconnect-btn:hover { background: #c03434; }
         #app {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-family: sans-serif;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 10;
+            width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+            color: white; font-family: sans-serif; position: absolute; top: 0; left: 0; z-index: 10;
         }
-
-        .upload-area {
-            border: 2px dashed #444;
-            padding: 60px 40px;
-            border-radius: 12px;
-            background: #1a1a1a;
-            text-align: center;
-            cursor: pointer;
-            min-width: 320px;
-        }
-
-        .upload-area.dragover {
-            border-color: #00f0ff;
-            background: #252525;
-        }
-
-        #game-wrapper {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: none;
-            z-index: 1;
-        }
-
-        #game-container {
-            width: 100% !important;
-            height: 100% !important;
-            margin: 0 auto;
-        }
-
+        .upload-area { border: 2px dashed #444; padding: 60px 40px; border-radius: 12px; background: #1a1a1a; text-align: center; cursor: pointer; min-width: 320px; }
+        .upload-area.dragover { border-color: #00f0ff; background: #252525; }
+        #game-wrapper { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 1; }
+        #game-container { width: 100% !important; height: 100% !important; margin: 0 auto; }
         #cloud-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-family: sans-serif;
-            font-size: 20px;
-            font-weight: bold;
-            z-index: 999999;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85); display: none; align-items: center; justify-content: center;
+            color: white; font-family: sans-serif; font-size: 20px; font-weight: bold; z-index: 999999;
         }
-
-        .retro-gray {
-            filter: grayscale(1) !important;
-        }
-
-        .night-mode {
-            filter: brightness(0.4) !important;
-        }
-
-        .retro-43 {
-            aspect-ratio: 4 / 3 !important;
-            width: auto !important;
-            height: 100% !important;
-        }
+        .retro-gray { filter: grayscale(1) !important; }
+        .night-mode { filter: brightness(0.4) !important; }
+        .retro-43 { aspect-ratio: 4 / 3 !important; width: auto !important; height: 100% !important; }
     </style>
     <script src="https://unpkg.com/dropbox/dist/Dropbox-sdk.min.js"></script>
 </head>
-
 <body>
 
     <div id="control-panel">
@@ -190,14 +76,10 @@
         let isGray = false, isNight = false, isRatio43 = false, isGameRunning = false;
         let currentRomName = 'retro_game', dbx = null, dropboxToken = localStorage.getItem('db_token');
 
-<<<<<<< HEAD
-=======
-        // 💡 전역 통신 버퍼 상태 초기화
+        // 전역 상태 초기화
         window.isF1Saving = false;
         window.isEscSaving = false;
-        let f1EscListenerAttached = false; // ✅ 이벤트 리스너 중복 방지
 
->>>>>>> parent of d734933 (Implement complete save system: F1 for State, ESC for State+SRM with Dropbox upload and fallback to local download)
         const gameWrapper = document.getElementById('game-wrapper');
         const gameContainer = document.getElementById('game-container');
         const cheatSheet = document.getElementById('cheat-sheet');
@@ -252,10 +134,7 @@
                 dbConnectBtn.classList.remove('connected');
                 dbConnectBtn.disabled = false;
                 dbDisconnectBtn.style.display = 'none';
-<<<<<<< HEAD
                 console.log("[DROPBOX] Dropbox 미연결");
-=======
->>>>>>> parent of d734933 (Implement complete save system: F1 for State, ESC for State+SRM with Dropbox upload and fallback to local download)
             }
         }
 
@@ -289,7 +168,6 @@
             if (e.dataTransfer?.files?.length > 0) { startEmulator(e.dataTransfer.files[0]); }
         });
 
-<<<<<<< HEAD
         // ✅ ESC 시퀀스를 위한 Overlay 표시 브릿지
         window.EJS_saveSaveFiles_Bridge = () => {
             cloudOverlay.style.display = 'flex';
@@ -297,8 +175,6 @@
             console.log("[INDEX] ESC Overlay 표시됨");
         };
 
-=======
->>>>>>> parent of d734933 (Implement complete save system: F1 for State, ESC for State+SRM with Dropbox upload and fallback to local download)
         async function startEmulator(file) {
             if (!file) return;
             currentRomName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
@@ -329,40 +205,13 @@
             const coreMap = { 'nes': 'nes', 'sfc': 'snes', 'smc': 'snes', 'gb': 'gb', 'gbc': 'gb', 'gba': 'gba' };
             window.EJS_core = coreMap[ext] || 'nes';
             
-            // 💡 깃허브 페이지 호스팅의 하위 리소스 정합성을 보장하기 위해 컨텍스트 상대 경로로 복원
             window.EJS_pathtodata = 'data/'; 
-            
             window.EJS_startOnLoaded = true;
             window.EJS_ShowQuickMenu = true;
             window.EJS_gameID = currentRomName;
             window.EJS_mysavestate = true;
             window.EJS_language = 'ko-KR';
 
-<<<<<<< HEAD
-=======
-            // 💡 [추가] GameManager.js가 자식 프레임에서 ESC 신호를 던질 때 안전하게 수신할 통합 브릿지 개통
-            const saveBridgeHandler = () => {
-                cloudOverlay.style.display = 'flex';
-                cloudOverlay.innerText = "☁️ 스냅샷 및 게임 데이터를 클라우드에 안전하게 저장 중입니다...";
-                
-                setTimeout(() => {
-                    window.isEscSaving = false;
-                    if(window.top) window.top.isEscSaving = false;
-                    isGameRunning = false;
-                    location.reload();
-                }, 4500); // 4.5초 유예시간 확보 후 브라우저 안전 리로드
-            };
-            window.EJS_saveSaveFiles_Bridge = saveBridgeHandler;
-            window.top.EJS_saveSaveFiles_Bridge = saveBridgeHandler;
-
-            // F1 전역 트리거 바인딩 유지
-            window.top.EJS_triggerSaveState = () => {
-                if (window.EJS_emulator && typeof window.EJS_emulator.saveState === 'function') {
-                    window.EJS_emulator.saveState();
-                }
-            };
-
->>>>>>> parent of d734933 (Implement complete save system: F1 for State, ESC for State+SRM with Dropbox upload and fallback to local download)
             const engineHook = setInterval(() => {
                 if (window.EJS_emulator?.config) {
                     window.EJS_emulator.config.enableSaveStates = true;
@@ -371,7 +220,6 @@
                 }
             }, 100);
 
-            // 🎯 에뮬레이터 엔진에서 추출된 State 바이너리가 낙하하는 순간 처리
             window.EJS_onSaveState = function (saveData) {
                 if (!saveData || !saveData.state) return;
 
@@ -379,7 +227,6 @@
                 const timestamp = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + "-" + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0') + String(now.getSeconds()).padStart(2, '0');
                 const targetFilename = `${currentRomName}-${timestamp}.state`;
 
-                // 1. .state 파일 브라우저 즉시 배출
                 try {
                     const blob = new Blob([saveData.state], { type: "application/octet-stream" });
                     const url = URL.createObjectURL(blob);
@@ -393,7 +240,6 @@
                     console.log("[RETRO-CONTROL] 스테이트 파일 디스크 저장 완료");
                 } catch (downloadErr) { console.error("로컬 파일 유실:", downloadErr); }
 
-                // 2. 드롭박스 동시 업로드 전송 처리
                 const activeDbx = dbx || window.dbx || (window.top && window.top.dbx);
                 if (activeDbx) {
                     console.log("[RETRO-CONTROL] 드롭박스로 바이너리 병렬 전송을 가동합니다.");
@@ -411,56 +257,11 @@
             document.body.appendChild(script);           
         }
 
-<<<<<<< HEAD
-        // ✅ 게임 화면에서 F, G, N, B 키 처리 (GameManager의 F1/ESC와 독립)
+        // 화면 효과 단축키 처리
         window.addEventListener('keydown', (e) => {
             if (!isGameRunning) return;
 
-            // 다른 기능키 처리 (F1, ESC는 GameManager에서 처리)
             if (e.key.toLowerCase() === 'f' && e.code !== 'F1') { 
-=======
-        // ✅ [개선] F1, ESC, 다른 키 이벤트를 명확하게 분리 - 캡처링 모드 사용
-        const f1EscHandler = (e) => {
-            if (!isGameRunning) return;
-
-            console.log(`[KEY EVENT] 키 입력 감지: ${e.key} (Code: ${e.code})`);
-
-            // F1: 실시간 세이브
-            if (e.key === 'F1') {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log("[F1 이벤트] F1 가로채기 완료: 세이브 파일을 강제로 추출합니다.");
-                window.isF1Saving = true;
-                if (window.EJS_emulator && typeof window.EJS_emulator.saveSaveFiles === 'function') {
-                    window.EJS_emulator.saveSaveFiles();
-                    console.log("[F1 성공] saveSaveFiles() 호출됨");
-                }
-                return false;
-            }
-
-            // ESC: 종료 및 클라우드 백업
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log("[ESC 이벤트] ESC 가로채기 완료: 드롭박스 통합 종료를 트리거합니다.");
-                window.isEscSaving = true;
-                if (window.top) window.top.isEscSaving = true;
-                
-                if (window.EJS_emulator && typeof window.EJS_emulator.saveSaveFiles === 'function') {
-                    window.EJS_emulator.saveSaveFiles();
-                    console.log("[ESC 성공] saveSaveFiles() 호출됨");
-                }
-                
-                // ESC 이벤트 발생
-                const escapeEvent = new CustomEvent('EJS_EscapePressed');
-                window.dispatchEvent(escapeEvent);
-                console.log("[ESC 성공] EJS_EscapePressed 이벤트 발생됨");
-                return false;
-            }
-
-            // 다른 키보드 단축키
-            if (e.key.toLowerCase() === 'f') { 
->>>>>>> parent of d734933 (Implement complete save system: F1 for State, ESC for State+SRM with Dropbox upload and fallback to local download)
                 e.preventDefault(); 
                 !document.fullscreenElement ? gameWrapper.requestFullscreen() : document.exitFullscreen(); 
             }
@@ -479,34 +280,7 @@
                 isRatio43 = !isRatio43; 
                 isRatio43 ? gameContainer.classList.add('retro-43') : gameContainer.classList.remove('retro-43'); 
             }
-<<<<<<< HEAD
         });
-=======
-        };
-
-        // ✅ 초기 F1/ESC 리스너 등록 (캡처링 모드)
-        window.addEventListener('keydown', f1EscHandler, { capture: true, passive: false });
-        console.log("[초기화] F1/ESC 글로벌 키보드 핸들러 등록됨");
-
-        // ⚡ [에뮬레이터 훅] 에뮬레이터 로드 후 추가 안전장치
-        setInterval(() => {
-            if (isGameRunning && window.EJS_emulator) {
-                // 에뮬레이터 코어가 키보드를 독점하려고 할 때 실행하는 함수를 직접 낚아챕니다.
-                if (typeof window.EJS_emulator.setKeyboardEnabled === 'function' && !window.EJS_emulator.setKeyboardEnabled.isHooked) {
-                    const originalSetKeyboard = window.EJS_emulator.setKeyboardEnabled;
-                    
-                    window.EJS_emulator.setKeyboardEnabled = function(enabled) {
-                        // 에뮬레이터가 내부적으로 "나 키보드 독점할래(true)"라고 소리쳐도, 
-                        // 강제로 false를 주입하여 브라우저(부모창)의 키보드 권한을 항상 살려둡니다.
-                        originalSetKeyboard.call(window.EJS_emulator, false);
-                    };
-                    window.EJS_emulator.setKeyboardEnabled.isHooked = true;
-                    console.log("[엔진 제어 성공] 에뮬레이터의 키보드 독점 모드를 영원히 해제했습니다.");
-                }
-            }
-        }, 1000);
->>>>>>> parent of d734933 (Implement complete save system: F1 for State, ESC for State+SRM with Dropbox upload and fallback to local download)
     </script>
 </body>
-
 </html>
