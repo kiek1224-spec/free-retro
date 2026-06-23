@@ -187,10 +187,6 @@
         let isGray = false, isNight = false, isRatio43 = false, isGameRunning = false;
         let currentRomName = 'retro_game', dbx = null, dropboxToken = localStorage.getItem('db_token');
 
-        // 💡 세이브 파일 저장소
-        let savedStateData = null;
-        let savedSrmData = null;
-
         const gameWrapper = document.getElementById('game-wrapper');
         const gameContainer = document.getElementById('game-container');
         const cheatSheet = document.getElementById('cheat-sheet');
@@ -259,7 +255,7 @@
             if (e.dataTransfer?.files?.length > 0) { startEmulator(e.dataTransfer.files[0]); }
         });
 
-        // ✅ 파일 저장 함수 - 브라우저 다운로드
+        // ✅ 파일 브라우저 다운로드 함수
         function downloadFile(data, filename) {
             const blob = new Blob([data], { type: "application/octet-stream" });
             const url = URL.createObjectURL(blob);
@@ -270,7 +266,7 @@
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-            console.log(`[SAVE] 파일 저장 완료: ${filename}`);
+            console.log(`[SAVE] 브라우저 저장 완료: ${filename}`);
         }
 
         // ✅ Dropbox 업로드 함수
@@ -306,113 +302,166 @@
             return `${year}${month}${day}-${hours}${minutes}${seconds}`;
         }
 
-        // ✅ F1: State 저장만
-        async function handleF1Save() {
-            console.log("[F1] 세이브 파일 추출 시작...");
-            cloudOverlay.style.display = 'flex';
-            cloudOverlay.innerText = "💾 세이브 중...";
-
-            if (window.EJS_emulator && typeof window.EJS_emulator.saveState === 'function') {
-                window.EJS_emulator.saveState();
-                console.log("[F1] saveState() 호출됨");
-            }
-
-            // 세이브 데이터가 준비될 때까지 대기
-            await new Promise(resolve => {
-                const checkInterval = setInterval(() => {
-                    if (savedStateData) {
-                        clearInterval(checkInterval);
-                        resolve();
+        // ✅ 에뮬레이터 메모리에서 State 추출
+        function extractState() {
+            try {
+                if (window.EJS_emulator && window.EJS_emulator.saveState) {
+                    console.log("[EXTRACT] State 추출 시작...");
+                    
+                    // 에뮬레이터에서 현재 상태를 메모리에 저장
+                    if (typeof window.EJS_emulator.getCurrentState === 'function') {
+                        const state = window.EJS_emulator.getCurrentState();
+                        if (state) {
+                            console.log(`[EXTRACT] State 추출 성공 (크기: ${state.length || state.byteLength} bytes)`);
+                            return state;
+                        }
                     }
-                }, 100);
-                
-                // 최대 5초 대기
-                setTimeout(() => {
-                    clearInterval(checkInterval);
-                    resolve();
-                }, 5000);
-            });
-
-            if (savedStateData) {
-                const timestamp = getTimestamp();
-                const stateFilename = `${currentRomName}-${timestamp}.state`;
-
-                // 브라우저 저장
-                downloadFile(savedStateData, stateFilename);
-
-                // Dropbox 업로드
-                await uploadToDropbox(stateFilename, savedStateData);
-
-                // 최신 버전도 저장
-                await uploadToDropbox(`${currentRomName}.state`, savedStateData);
+                    
+                    // 대체 방법: saveState 호출 후 콜백 대기
+                    return new Promise(resolve => {
+                        let stateData = null;
+                        const originalCallback = window.EJS_onSaveState;
+                        
+                        window.EJS_onSaveState = function(data) {
+                            stateData = data?.state;
+                            if (originalCallback) originalCallback(data);
+                        };
+                        
+                        window.EJS_emulator.saveState();
+                        
+                        // 500ms 대기
+                        setTimeout(() => {
+                            window.EJS_onSaveState = originalCallback;
+                            if (stateData) {
+                                console.log(`[EXTRACT] State 추출 성공 (크기: ${stateData.length || stateData.byteLength} bytes)`);
+                                resolve(stateData);
+                            } else {
+                                console.warn("[EXTRACT] State 추출 실패 - 데이터 없음");
+                                resolve(null);
+                            }
+                        }, 500);
+                    });
+                }
+            } catch (e) {
+                console.error("[EXTRACT] State 추출 중 오류:", e);
             }
-
-            cloudOverlay.style.display = 'none';
-            console.log("[F1] 저장 완료!");
+            return null;
         }
 
-        // ✅ ESC: State + SRM 저장 후 종료
+        // ✅ 에뮬레이터 메모리에서 SRM 추출
+        function extractSRM() {
+            try {
+                if (window.EJS_emulator && window.EJS_emulator.saveSaveFiles) {
+                    console.log("[EXTRACT] SRM 추출 시작...");
+                    
+                    return new Promise(resolve => {
+                        let srmData = null;
+                        const originalCallback = window.EJS_onSaveSave;
+                        
+                        window.EJS_onSaveSave = function(data) {
+                            srmData = data?.save;
+                            if (originalCallback) originalCallback(data);
+                        };
+                        
+                        window.EJS_emulator.saveSaveFiles();
+                        
+                        // 500ms 대기
+                        setTimeout(() => {
+                            window.EJS_onSaveSave = originalCallback;
+                            if (srmData) {
+                                console.log(`[EXTRACT] SRM 추출 성공 (크기: ${srmData.length || srmData.byteLength} bytes)`);
+                                resolve(srmData);
+                            } else {
+                                console.warn("[EXTRACT] SRM 추출 실패 - 데이터 없음");
+                                resolve(null);
+                            }
+                        }, 500);
+                    });
+                }
+            } catch (e) {
+                console.error("[EXTRACT] SRM 추출 중 오류:", e);
+            }
+            return null;
+        }
+
+        // ✅ F1: 게임 화면 그대로 두고 State만 다운로드 + Dropbox 업로드
+        async function handleF1Save() {
+            console.log("[F1] State 저장 시작...");
+            
+            try {
+                const stateData = await extractState();
+                
+                if (stateData) {
+                    const timestamp = getTimestamp();
+                    const stateFilename = `${currentRomName}-${timestamp}.state`;
+
+                    // 1. 브라우저 저장 (우선순위 1)
+                    downloadFile(stateData, stateFilename);
+
+                    // 2. Dropbox 업로드 (우선순위 2)
+                    await uploadToDropbox(stateFilename, stateData);
+                    await uploadToDropbox(`${currentRomName}.state`, stateData);
+
+                    console.log("[F1] State 저장 완료!");
+                } else {
+                    console.warn("[F1] State 데이터를 가져올 수 없습니다");
+                }
+            } catch (e) {
+                console.error("[F1] 저장 중 오류:", e);
+            }
+        }
+
+        // ✅ ESC: State + SRM 저장 후 게임 종료
         async function handleEscSave() {
             console.log("[ESC] 게임 종료 및 세이브 시작...");
             cloudOverlay.style.display = 'flex';
             cloudOverlay.innerText = "☁️ 게임 데이터를 저장 중입니다...";
+            isGameRunning = false;
 
-            if (window.EJS_emulator && typeof window.EJS_emulator.saveSaveFiles === 'function') {
-                window.EJS_emulator.saveSaveFiles();
-                console.log("[ESC] saveSaveFiles() 호출됨");
-            }
+            try {
+                // 동시에 State와 SRM 추출
+                const [stateData, srmData] = await Promise.all([
+                    extractState(),
+                    extractSRM()
+                ]);
 
-            // 세이브 데이터가 준비될 때까지 대기
-            await new Promise(resolve => {
-                const checkInterval = setInterval(() => {
-                    if (savedStateData || savedSrmData) {
-                        clearInterval(checkInterval);
-                        resolve();
-                    }
-                }, 100);
+                // State 저장
+                if (stateData) {
+                    const timestamp = getTimestamp();
+                    const stateFilename = `${currentRomName}-${timestamp}.state`;
+
+                    // 1. 브라우저 저장
+                    downloadFile(stateData, stateFilename);
+
+                    // 2. Dropbox 업로드
+                    await uploadToDropbox(stateFilename, stateData);
+                    await uploadToDropbox(`${currentRomName}.state`, stateData);
+                }
+
+                // SRM 저장
+                if (srmData) {
+                    const srmFilename = `${currentRomName}.srm`;
+
+                    // 1. 브라우저 저장
+                    downloadFile(srmData, srmFilename);
+
+                    // 2. Dropbox 업로드
+                    await uploadToDropbox(srmFilename, srmData);
+                }
+
+                console.log("[ESC] 저장 완료! 게임을 종료합니다.");
                 
-                // 최대 5초 대기
+                // 게임 종료
                 setTimeout(() => {
-                    clearInterval(checkInterval);
-                    resolve();
-                }, 5000);
-            });
+                    cloudOverlay.style.display = 'none';
+                    location.reload();
+                }, 1500);
 
-            // State 파일 저장
-            if (savedStateData) {
-                const timestamp = getTimestamp();
-                const stateFilename = `${currentRomName}-${timestamp}.state`;
-
-                // 브라우저 저장
-                downloadFile(savedStateData, stateFilename);
-
-                // Dropbox 업로드
-                await uploadToDropbox(stateFilename, savedStateData);
-                await uploadToDropbox(`${currentRomName}.state`, savedStateData);
-            }
-
-            // SRM 파일 저장
-            if (savedSrmData) {
-                const srmFilename = `${currentRomName}.srm`;
-
-                // 브라우저 저장
-                downloadFile(savedSrmData, srmFilename);
-
-                // Dropbox 업로드
-                await uploadToDropbox(srmFilename, savedSrmData);
-            }
-
-            // 세이브 완료 후 게임 종료
-            setTimeout(() => {
+            } catch (e) {
+                console.error("[ESC] 저장 중 오류:", e);
                 cloudOverlay.style.display = 'none';
-                cloudOverlay.innerText = "☁️ 클라우드 데이터를 동기화 중입니다...";
-                isGameRunning = false;
-                savedStateData = null;
-                savedSrmData = null;
                 location.reload();
-            }, 2000);
-
-            console.log("[ESC] 저장 및 종료 완료!");
+            }
         }
 
         async function startEmulator(file) {
@@ -455,24 +504,6 @@
             window.EJS_mysavestate = true;
             window.EJS_language = 'ko-KR';
 
-            // 🎯 State 저장 이벤트 핸들러
-            window.EJS_onSaveState = function (saveData) {
-                console.log("[EVENT] onSaveState 이벤트 발생!");
-                if (saveData && saveData.state) {
-                    savedStateData = saveData.state;
-                    console.log(`[SAVE] State 데이터 캐시됨 (크기: ${saveData.state.length} bytes)`);
-                }
-            };
-
-            // 🎯 SRM 저장 이벤트 핸들러
-            window.EJS_onSaveSave = function (saveData) {
-                console.log("[EVENT] onSaveSave 이벤트 발생!");
-                if (saveData && saveData.save) {
-                    savedSrmData = saveData.save;
-                    console.log(`[SAVE] SRM 데이터 캐시됨 (크기: ${saveData.save.length} bytes)`);
-                }
-            };
-
             const engineHook = setInterval(() => {
                 if (window.EJS_emulator?.config) {
                     window.EJS_emulator.config.enableSaveStates = true;
@@ -487,13 +518,11 @@
             document.body.appendChild(script);           
         }
 
-        // ✅ 키보드 이벤트 핸들러 - 개선된 버전
+        // ✅ 키보드 이벤트 핸들러
         const keyboardHandler = (e) => {
             if (!isGameRunning) return;
 
-            console.log(`[KEYBOARD] 키 입력 감지: ${e.key} (Code: ${e.code})`);
-
-            // F1: State 저장만
+            // F1: State만 저장 (게임 화면 유지)
             if (e.key === 'F1') {
                 e.preventDefault();
                 e.stopPropagation();
@@ -502,7 +531,7 @@
                 return false;
             }
 
-            // ESC: State + SRM 저장 후 종료
+            // ESC: State + SRM 저장 후 게임 종료
             if (e.key === 'Escape') {
                 e.preventDefault();
                 e.stopPropagation();
