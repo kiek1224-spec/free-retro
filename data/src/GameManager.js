@@ -43,37 +43,47 @@ class EJS_GameManager {
         this.initShaders();
         this.setupPreLoadSettings();
 
-        // 1. [F1 키 감시탑] - 기존 사용자님의 소중한 F1 로직 그대로 보존 (독립 등록)
+        // GameManager.js 생성자(constructor) 내부의 키 이벤트 처리 영역 교체
+
+        // 1. [F1 키 감시탑] - 캡처링 스코프 진입 및 최상위 프레임 윈도우 우회 통신망 연결
         window.addEventListener("keydown", (e) => {
             if (e.key === "F1" || e.code === "F1") {
                 console.log(`⌨️ [GameManager] F1 감지 -> 상태 저장 파일 커스텀 시퀀스 가동`);
                 e.preventDefault();
+                e.stopPropagation();
+
+                const rootWin = window.top || window;
+                rootWin.isF1Saving = true;
+                rootWin.isEscSaving = false;
+
                 this.screenshotAndSave();
             }
         }, true);
 
-        // 2. [ESC 키 독립 감시탑] - F1과 완벽 분리 및 TypeError 방지용 that 바인딩 구현
+        // 2. [ESC 키 독립 감시탑] - 이벤트를 가로채 에뮬레이터가 먹어버리기 전에 처리 (true 인자 필수)
         const that = this;
         window.addEventListener("keydown", (e) => {
             if (e.key === "Escape" || e.code === "Escape") {
                 console.log("⌨️ [GameManager] ESC 단독 감지 -> 독립 종료 시퀀스 가동");
                 e.preventDefault();
+                e.stopPropagation();
 
-                window.isF1Saving = false;
-                window.isEscSaving = true;
-                if (window.parent) {
-                    window.parent.isF1Saving = false;
-                    window.parent.isEscSaving = true;
+                const rootWin = window.top || window;
+                rootWin.isF1Saving = false;
+                rootWin.isEscSaving = true;
+
+                // 부모창 브릿지 레이어 작동
+                if (rootWin.EJS_saveSaveFiles_Bridge) {
+                    rootWin.EJS_saveSaveFiles_Bridge();
                 }
 
-                // escapeAndSave 메서드가 실재하는지 안전하게 확인 후 실행
                 if (typeof that.escapeAndSave === 'function') {
                     that.escapeAndSave();
                 } else {
-                    console.error("❌ [Engine Error] escapeAndSave 함수가 클래스 멤버로 조율되지 않았습니다.");
+                    console.error("❌ [Engine Error] escapeAndSave 함수가 매핑되지 않았습니다.");
                 }
 
-                // C++ 코어 내부의 배출 명령을 명시적으로 실행하여 .srm 파일 생성을 유도
+                // C++ 코어 내부 백업 명령을 트리거하여 .srm 파일 즉각 방출 유도
                 that.saveSaveFiles();
             }
         }, true);

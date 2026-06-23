@@ -191,9 +191,9 @@
         let isGray = false, isNight = false, isRatio43 = false, isGameRunning = false;
         let currentRomName = 'retro_game', dbx = null, dropboxToken = localStorage.getItem('db_token');
 
-        // 💡 무전 채널 수신기를 최상위 탑 공간에 고정
-        window.top.isF1Saving = false;
-        window.top.isEscSaving = false;
+        // 💡 전역 통신 버퍼 상태 초기화
+        window.isF1Saving = false;
+        window.isEscSaving = false;
 
         const gameWrapper = document.getElementById('game-wrapper');
         const gameContainer = document.getElementById('game-container');
@@ -210,12 +210,12 @@
             if (tagName.toLowerCase() === 'a') {
                 const originalClick = el.click;
                 el.click = function () {
-                    if (window.top.isF1Saving && el.download && el.download.endsWith('.srm')) {
+                    if (window.isF1Saving && el.download && el.download.endsWith('.srm')) {
                         console.log(`[RETRO-CONTROL] 🛡️ F1 모드 감지: 불필요한 SRAM 배출 취소`);
                         return;
                     }
-                    if (window.top.isEscSaving && el.download && el.download.endsWith('.srm')) {
-                        console.log(`[RETRO-CONTROL] ⏱️ ESC 모드 감지: SRM 파일 800ms 딜레이 우회 발사 예정. 원본: ${el.download}`);
+                    if (window.isEscSaving && el.download && el.download.endsWith('.srm')) {
+                        console.log(`[RETRO-CONTROL] ⏱️ ESC 모드 감지: SRM 파일 800ms 딜레이 우회 발사 예정`);
                         el.download = `${currentRomName}.srm`;
                         setTimeout(() => {
                             console.log(`[RETRO-CONTROL] 🚀 우회 타격 완료: ${el.download}`);
@@ -240,7 +240,7 @@
             }
             if (dropboxToken) {
                 dbx = new Dropbox.Dropbox({ accessToken: dropboxToken });
-                window.top.dbx = dbx;
+                window.dbx = dbx; // 전역 스코프 바인딩 보장
                 dbConnectBtn.innerText = '☁️ Dropbox 연동 완료';
                 dbConnectBtn.classList.add('connected');
                 dbConnectBtn.disabled = true;
@@ -262,7 +262,7 @@
         dbDisconnectBtn.addEventListener('click', () => {
             if (confirm("Dropbox 연결을 해제하시겠습니까?")) {
                 localStorage.removeItem('db_token');
-                dropboxToken = null; dbx = null; window.top.dbx = null;
+                dropboxToken = null; dbx = null; window.dbx = null;
                 initDropbox();
             }
         });
@@ -311,18 +311,23 @@
             const ext = file.name.split('.').pop().toLowerCase();
             const coreMap = { 'nes': 'nes', 'sfc': 'snes', 'smc': 'snes', 'gb': 'gb', 'gbc': 'gb', 'gba': 'gba' };
             window.EJS_core = coreMap[ext] || 'nes';
-            window.EJS_pathtodata = '/free-retro/data/';
+            window.EJS_pathtodata = 'data/'; // GitHub Pages 상대경로 매핑 안정화
             window.EJS_startOnLoaded = true;
             window.EJS_ShowQuickMenu = true;
             window.EJS_gameID = currentRomName;
             window.EJS_mysavestate = true;
             window.EJS_language = 'ko-KR';
 
-            // 💡 GameManager에서 안전하게 땡길 수 있는 전역 트리거 바인딩
-            window.top.EJS_triggerSaveState = () => {
-                if (window.EJS_emulator && typeof window.EJS_emulator.saveState === 'function') {
-                    window.EJS_emulator.saveState();
-                }
+            // 💡 GameManager에서 안전하게 노크할 수 있는 최상위 오버레이 브릿지 개통
+            window.EJS_saveSaveFiles_Bridge = () => {
+                cloudOverlay.style.display = 'flex';
+                cloudOverlay.innerText = "☁️ 스냅샷 및 게임 데이터를 클라우드에 안전하게 저장 중입니다...";
+                
+                setTimeout(() => {
+                    window.isEscSaving = false;
+                    isGameRunning = false;
+                    location.reload();
+                }, 4500); // 파일 다운로드 및 업로드 확보를 위한 4.5초 유예 후 리로드
             };
 
             const engineHook = setInterval(() => {
@@ -333,7 +338,7 @@
                 }
             }, 100);
 
-            // 🎯 핵심: 에뮬레이터 엔진에서 스테이트가 낙하하는 순간 처리
+            // 🎯 에뮬레이터 코어 내부에서 세이브 상태가 출력될 때 처리
             window.EJS_onSaveState = function (saveData) {
                 if (!saveData || !saveData.state) return;
 
@@ -341,7 +346,7 @@
                 const timestamp = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + "-" + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0') + String(now.getSeconds()).padStart(2, '0');
                 const targetFilename = `${currentRomName}-${timestamp}.state`;
 
-                // 1. .state 파일 브라우저 즉시 배출
+                // 1. .state 파일 브라우저 다운로드 배출
                 try {
                     const blob = new Blob([saveData.state], { type: "application/octet-stream" });
                     const url = URL.createObjectURL(blob);
@@ -355,21 +360,14 @@
                     console.log("[RETRO-CONTROL] 스테이트 파일 디스크 저장 완료");
                 } catch (downloadErr) { console.error("로컬 파일 유실:", downloadErr); }
 
-                // 2. 드롭박스 동시 업로드 전송 처리
+                // 2. 드롭박스 전송
                 if (dbx) {
-                    console.log("[RETRO-CONTROL] 드롭박스로 바이너리 병렬 전송을 가동합니다.");
                     const paths = [`/${currentRomName}.state`, `/${targetFilename}`];
                     paths.forEach(savePath => {
                         dbx.filesUpload({ path: savePath, contents: saveData.state, mode: 'overwrite' })
                             .then(() => console.log(`[클라우드 전송성공]: ${savePath}`))
                             .catch(e => console.error("[클라우드 실패]:", e));
                     });
-                }
-
-                // 3. 만약 ESC 시퀀스였다면 GameManager의 강제 SRM 연쇄 배출 다리를 호출
-                if (window.top.isEscSaving && window.top.EJS_saveSaveFiles_Bridge) {
-                    console.log("[RETRO-CONTROL] 스테이트 확보 완료 -> 연쇄 SRM 강제 방출 시퀀스 돌입");
-                    window.top.EJS_saveSaveFiles_Bridge();
                 }
             };
 
@@ -378,34 +376,15 @@
             document.body.appendChild(script);           
         }
 
-        
-
-        window.addEventListener('keydown', async (e) => {
+        // 💡 GitHub Pages 캔버스 포커스 탈취 방어용 캡처링 리스너 고도화
+        window.addEventListener('keydown', (e) => {
             if (!isGameRunning) return;
 
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                console.log("[RETRO-CONTROL] ESC 제어탑: 최종 버퍼 방출 대기 모드 진입");
-                window.isF1Saving = false;
-                window.isEscSaving = true;
-
-                cloudOverlay.style.display = 'flex';
-                cloudOverlay.innerText = "☁️ 스냅샷 및 게임 데이터를 클라우드에 안전하게 저장 중입니다...";
-
-                // 💡 GameManager.js에서 무전을 받아 SRM 및 State 파일을 하드디스크와 
-                // 클라우드에 업로드할 수 있도록 페이지 리로드 전 4.5초의 유예 시간을 벌어줍니다.
-                await new Promise(r => setTimeout(r, 4500));
-
-                window.isEscSaving = false;
-                isGameRunning = false;
-                location.reload();
-                return;
-            }
-            
-            if (e.key === 'f' || e.key === 'F') { e.preventDefault(); !document.fullscreenElement ? gameWrapper.requestFullscreen() : document.exitFullscreen(); }
-            if (e.key === 'g' || e.key === 'G') { e.preventDefault(); isGray = !isGray; isGray ? gameContainer.classList.add('retro-gray') : gameContainer.classList.remove('retro-gray'); }
-            if (e.key === 'n' || e.key === 'N') { e.preventDefault(); isNight = !isNight; isNight ? gameContainer.classList.add('night-mode') : gameContainer.classList.remove('night-mode'); }
-            if (e.key === 'b' || e.key === 'B') { e.preventDefault(); isRatio43 = !isRatio43; isRatio43 ? gameContainer.classList.add('retro-43') : gameContainer.classList.remove('retro-43'); }
+            // 외곽 셰이더 및 화면 비율 제어 제어탑
+            if (e.key.toLowerCase() === 'f') { e.preventDefault(); !document.fullscreenElement ? gameWrapper.requestFullscreen() : document.exitFullscreen(); }
+            if (e.key.toLowerCase() === 'g') { e.preventDefault(); isGray = !isGray; isGray ? gameContainer.classList.add('retro-gray') : gameContainer.classList.remove('retro-gray'); }
+            if (e.key.toLowerCase() === 'n') { e.preventDefault(); isNight = !isNight; isNight ? gameContainer.classList.add('night-mode') : gameContainer.classList.remove('night-mode'); }
+            if (e.key.toLowerCase() === 'b') { e.preventDefault(); isRatio43 = !isRatio43; isRatio43 ? gameContainer.classList.add('retro-43') : gameContainer.classList.remove('retro-43'); }
         }, true);
     </script>
 </body>
