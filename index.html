@@ -395,11 +395,31 @@
             if (e.key.toLowerCase() === 'n') { e.preventDefault(); isNight = !isNight; isNight ? gameContainer.classList.add('night-mode') : gameContainer.classList.remove('night-mode'); }
             if (e.key.toLowerCase() === 'b') { e.preventDefault(); isRatio43 = !isRatio43; isRatio43 ? gameContainer.classList.add('retro-43') : gameContainer.classList.remove('retro-43'); }
         }, true);
+
+      // ⚡ [최종 치트키] WASM 독점방을 완전히 깨부수고 키보드 권한을 index.html로 강제 귀속
         setInterval(() => {
-    if (isGameRunning) {
-        window.focus();
-        document.getElementById('game-wrapper').focus();
-    }}, 1000);
+            if (isGameRunning) {
+                // 1. 브라우저 창 전체 포커스 강제 환기
+                window.focus();
+                
+                // 2. 에뮬레이터가 들어있는 컨테이너 포커스 강제 획득
+                const wrapper = document.getElementById('game-wrapper');
+                if (wrapper) {
+                    wrapper.focus();
+                }
+
+                // 3. 🔥 핵심: 에뮬레이터 내부 캔버스(Canvas)의 키보드 가로채기 차단
+                // 에뮬레이터가 생성하는 모든 canvas 엘리먼트에서 포커스를 의도적으로 빼앗아 옵니다.
+                const canvases = document.querySelectorAll('#game-container canvas, canvas');
+                canvases.forEach(canvas => {
+                    if (canvas && document.activeElement === canvas) {
+                        canvas.blur(); // 캔버스의 포커스를 강제로 해제(무력화)
+                        window.focus(); // 권한을 부모(윈도우)로 즉시 회수
+                    }
+                });
+            }
+        }, 500); // 💡 0.5초(500ms) 주기로 더 촘촘하게 감시하여 빈틈을 주지 않습니다.
+        
     </script>
 </body>
 </html>
