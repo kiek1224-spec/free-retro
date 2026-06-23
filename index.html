@@ -311,7 +311,7 @@
             const ext = file.name.split('.').pop().toLowerCase();
             const coreMap = { 'nes': 'nes', 'sfc': 'snes', 'smc': 'snes', 'gb': 'gb', 'gbc': 'gb', 'gba': 'gba' };
             window.EJS_core = coreMap[ext] || 'nes';
-            window.EJS_pathtodata = 'https://cdn.emulatorjs.org/latest/data/';
+            window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
             window.EJS_startOnLoaded = true;
             window.EJS_ShowQuickMenu = true;
             window.EJS_gameID = currentRomName;
@@ -375,10 +375,10 @@
 
             const script = document.createElement('script');
             script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
-            document.body.appendChild(script);
+            document.body.appendChild(script);           
         }
 
-
+        
 
         window.addEventListener('keydown', async (e) => {
             if (!isGameRunning) return;
@@ -401,7 +401,7 @@
                 location.reload();
                 return;
             }
-
+            
             if (e.key === 'f' || e.key === 'F') { e.preventDefault(); !document.fullscreenElement ? gameWrapper.requestFullscreen() : document.exitFullscreen(); }
             if (e.key === 'g' || e.key === 'G') { e.preventDefault(); isGray = !isGray; isGray ? gameContainer.classList.add('retro-gray') : gameContainer.classList.remove('retro-gray'); }
             if (e.key === 'n' || e.key === 'N') { e.preventDefault(); isNight = !isNight; isNight ? gameContainer.classList.add('night-mode') : gameContainer.classList.remove('night-mode'); }
