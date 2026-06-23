@@ -7,7 +7,8 @@
         "gamepad.js",
         "GameManager.js",
         "socket.io.min.js",
-        "compression.js"
+        "compression.js",
+        "bridge.js" // 👈 여기에 우리 기생충 파일을 심어 함께 로드되도록 만듭니다!
     ];
 
     const folderPath = (path) => path.substring(0, path.length - path.split("/").pop().length);
