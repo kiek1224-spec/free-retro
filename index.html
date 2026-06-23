@@ -385,8 +385,7 @@
             script.src = 'data/loader.js';
             document.body.appendChild(script);           
         }
-
-       window.addEventListener('keydown', (e) => {
+        window.addEventListener('keydown', (e) => {
             if (!isGameRunning) return;
 
             if (e.key.toLowerCase() === 'f') { e.preventDefault(); !document.fullscreenElement ? gameWrapper.requestFullscreen() : document.exitFullscreen(); }
