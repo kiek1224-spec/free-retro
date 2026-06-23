@@ -311,7 +311,7 @@
             const ext = file.name.split('.').pop().toLowerCase();
             const coreMap = { 'nes': 'nes', 'sfc': 'snes', 'smc': 'snes', 'gb': 'gb', 'gbc': 'gb', 'gba': 'gba' };
             window.EJS_core = coreMap[ext] || 'nes';
-            window.EJS_pathtodata =  'https://cdn.emulatorjs.org/4.3.0/data/';
+            window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
             window.EJS_startOnLoaded = true;
             window.EJS_ShowQuickMenu = true;
             window.EJS_gameID = currentRomName;
