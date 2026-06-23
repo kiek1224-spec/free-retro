@@ -42,48 +42,73 @@ class EJS_GameManager {
         this.initShaders();
         this.setupPreLoadSettings();
 
+       // =========================================================
+        // 🔥 [독점 엔진 돌파] F1 / ESC 키보드 캡처링 및 콘솔 디버깅 브릿지
         // =========================================================
-        // 🎯 [F1 / ESC 이벤트 캡처링 - 최우선 선점 핸들러]
-        // =========================================================
-       const that = this;
-       const rootWin = window.top || window;
+        const that = this;
+        const rootWin = window.top || window;
 
-// F1 키 핸들러 (State만 저장)
+        // 1. F1 키 처리 (콘솔 출력 및 로컬/클라우드 세이브 유도)
         window.addEventListener("keydown", (e) => {
             if (e.key === "F1" || e.code === "F1") {
-        console.log(`⌨️ [GameManager] F1 감지 -> screenshotAndSave() 실행`);
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // 🛡️ 인덱스 스크립트 가로채기 플래그 On
-        rootWin.isF1Saving = true;
-        rootWin.isEscSaving = false;
-        
-        that.screenshotAndSave();
-        
-        // 실행 후 즉시 복구 (SRAM 가로채기 해제)
-        setTimeout(() => { rootWin.isF1Saving = false; }, 500);
-        return false;
-    }
-            }, true);
-
-        // ESC 키 핸들러 (State + SRM 저장 후 종료)
-        window.addEventListener("keydown", (e) => {
-            if (e.key === "Escape" || e.code === "Escape") {
-                console.log(`⌨️ [GameManager] ESC 감지 -> escapeAndSave() 실행`);
+                console.log("⌨️ [GameManager] F1 키 입력 감지됨! 콘솔 브릿지 가동.");
                 e.preventDefault();
-                e.stopPropagation();
-                
-                // ESC 오버레이 표시
-                const rootWin = window.top || window;
-                if (rootWin.EJS_saveSaveFiles_Bridge) {
-                    rootWin.EJS_saveSaveFiles_Bridge();
+                e.stopPropagation(); // 에뮬레이터 독점 차단
+
+                // 인덱스 가로채기 플래그 세팅
+                rootWin.isF1Saving = true;
+                rootWin.isEscSaving = false;
+
+                // GameManager 고유의 세이브 메서드 강제 호출
+                if (typeof that.screenshotAndSave === 'function') {
+                    console.log("[GameManager] screenshotAndSave() 실행");
+                    that.screenshotAndSave();
+                } else if (typeof that.saveSaveFiles === 'function') {
+                    console.log("[GameManager] saveSaveFiles() 실행");
+                    that.saveSaveFiles();
                 }
-                
-                that.escapeAndSave();
+
+                // 플래그 원복
+                setTimeout(() => { rootWin.isF1Saving = false; }, 500);
                 return false;
             }
-        }, true);
+        }, true); // true 옵션을 주어 최상위 캡처링 단계에서 선점합니다.
+
+        // 2. ESC 키 처리 (콘솔 출력 및 게임 안전 종료 / 클라우드 전송 백업)
+        window.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" || e.code === "Escape") {
+                console.log("⌨️ [GameManager] ESC 키 입력 감지됨! 콘솔 브릿지 가동.");
+                e.preventDefault();
+                e.stopPropagation(); // 에뮬레이터 독점 차단
+
+                // 인덱스 가로채기 플래그 세팅
+                rootWin.isF1Saving = false;
+                rootWin.isEscSaving = true;
+
+                // index.html 에 있는 동기화 중 화면(Overlay) 브릿지 호출
+                if (rootWin.EJS_saveSaveFiles_Bridge) {
+                    console.log("[GameManager] index.html의 UI 오버레이 브릿지 호출");
+                    rootWin.EJS_saveSaveFiles_Bridge();
+                }
+
+                // GameManager 고유의 세이브 및 종료 메서드 강제 호출
+                if (typeof that.escapeAndSave === 'function') {
+                    console.log("[GameManager] escapeAndSave() 실행");
+                    that.escapeAndSave();
+                } else if (typeof that.saveSaveFiles === 'function') {
+                    console.log("[GameManager] saveSaveFiles() 실행 후 종료 시퀀스 진입");
+                    that.saveSaveFiles();
+                    setTimeout(() => {
+                        location.reload();
+                    }, 4000);
+                }
+                return false;
+            }
+        }, true); // true 옵션을 주어 최상위 캡처링 단계에서 선점합니다.
+
+        // Window와 Document 둘 다 최상위 캡처링 단계에서 선점하도록 더블 바인딩
+        window.addEventListener("keydown", keyHandler, true);
+        document.addEventListener("keydown", keyHandler, true);
 
         this.EJS.on("exit", () => {
             if (!this.EJS.failedToStart) {
