@@ -43,64 +43,58 @@ class EJS_GameManager {
         this.setupPreLoadSettings();
 
         // =========================================================
-        // 🎯 [F1 / ESC 이벤트 캡처링 기반 포커스 강제 장악 커스텀 엔진]
+        // 🎯 [F1 / ESC 이벤트 캡처링 - 최우선 선점 핸들러]
         // =========================================================
+        const that = this;
 
-        // 1. F1 키 선점 가로채기 리스너 (WASM이 이벤트를 먹기 전에 최상위에서 차단)
+        // F1 키 핸들러 (State만 저장)
         window.addEventListener("keydown", (e) => {
             if (e.key === "F1" || e.code === "F1") {
-                console.log(`⌨️ [GameManager] F1 포커스 강제 탈취 -> State 전용 시퀀스 가동`);
-                e.preventDefault();
-                e.stopPropagation(); // 에뮬레이터 내부 C++ 코어 전파 원천 차단
-
-                // 전역 스코프 안전 바인딩 통합 처리
-                window.isF1Saving = true;
-                window.isEscSaving = false;
-                if (window.top) {
-                    window.top.isF1Saving = true;
-                    window.top.isEscSaving = false;
-                }
-
-                this.screenshotAndSave();
-            }
-        }, true); // 💡 세 번째 인자 true로 캡처링 단계에서 선점
-
-        // 2. ESC 키 선점 가로채기 리스너 (종료 + SRM 버퍼 기화 및 클라우드 업로드)
-        const that = this;
-        window.addEventListener("keydown", (e) => {
-            if (e.key === "Escape" || e.code === "Escape") {
-                console.log("⌨️ [GameManager] ESC 포커스 강제 탈취 -> 통합 종료 시퀀스 가동");
+                console.log(`⌨️ [GameManager] F1 감지 -> screenshotAndSave() 실행`);
                 e.preventDefault();
                 e.stopPropagation();
+                that.screenshotAndSave();
+                return false;
+            }
+        }, true);
 
-                window.isF1Saving = false;
-                window.isEscSaving = true;
-                if (window.top) {
-                    window.top.isF1Saving = false;
-                    window.top.isEscSaving = true;
-                }
-
-                // 💡 index.html에 등록된 ESC 백업UI 오버레이를 즉시 트리거
+        // ESC 키 핸들러 (State + SRM 저장 후 종료)
+        window.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" || e.code === "Escape") {
+                console.log(`⌨️ [GameManager] ESC 감지 -> escapeAndSave() 실행`);
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // ESC 오버레이 표시
                 const rootWin = window.top || window;
                 if (rootWin.EJS_saveSaveFiles_Bridge) {
                     rootWin.EJS_saveSaveFiles_Bridge();
-                } else if (window.EJS_saveSaveFiles_Bridge) {
-                    window.EJS_saveSaveFiles_Bridge();
                 }
-
-                if (typeof that.escapeAndSave === 'function') {
-                    that.escapeAndSave();
-                } else {
-                    console.error("❌ [Engine Error] escapeAndSave 함수가 매핑되지 않았습니다.");
-                }
-
-                // 가상 파일 시스템 루트의 지연 버퍼를 밀어내 .srm 파일 강제 배출
-                that.saveSaveFiles();
+                
+                that.escapeAndSave();
+                return false;
             }
-        }, true); // 💡 세 번째 인자 true로 캡처링 단계에서 선점
+        }, true);
+
+        this.EJS.on("exit", () => {
+            if (!this.EJS.failedToStart) {
+                this.saveSaveFiles();
+                this.functions.restart();
+                this.saveSaveFiles();
+            }
+            this.toggleMainLoop(0);
+            this.FS.unmount("/data/saves");
+            setTimeout(() => {
+                try {
+                    this.Module.abort();
+                } catch (e) {
+                    console.warn(e);
+                };
+            }, 1000);
+        });
     }
 
-    // 헬퍼 메서드: 로컬 브라우저 디스크 다운로드 처리 전용 (지연 소멸자 확보)
+    // ✅ 파일 다운로드 헬퍼
     downloadFile(data, filename) {
         try {
             const blob = new Blob([data], { type: "application/octet-stream" });
@@ -112,145 +106,132 @@ class EJS_GameManager {
             a.click();
             document.body.removeChild(a);
 
-            // 💡 [핵심 버그 수정] 즉시 해제해 버리면 228.html의 800ms 지연 시간차 다운로드 순간에 주소가 파괴되어 실패하므로,
-            // 브라우저가 온전히 파일을 확보한 뒤 메모리를 해제하도록 20초간 유예 시간을 줍니다.
             setTimeout(() => {
                 URL.revokeObjectURL(url);
             }, 20000);
 
-            console.log(`📥 [GameManager] 로컬 디스크 파일 다운로드 기화식 대기 등록: ${filename}`);
+            console.log(`📥 [GameManager] 파일 다운로드: ${filename}`);
         } catch (err) {
-            console.error("❌ [GameManager] 로컬 파일 배출 중 오류 발생:", err);
+            console.error("❌ [GameManager] 다운로드 실패:", err);
         }
     }
 
+    // ✅ 날짜-시간 형식 생성
+    getTimestamp() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        return `${year}${month}${day}-${hours}${minutes}${seconds}`;
+    }
+
+    // ✅ Dropbox 업로드
+    async uploadToDropbox(filename, data) {
+        const targetWindow = window.parent || window.top || window.opener || window;
+        const activeDbx = targetWindow.dbx || window.dbx;
+
+        if (!activeDbx) {
+            console.warn("⚠️ [GameManager] Dropbox 미연결 - 업로드 스킵");
+            return;
+        }
+
+        try {
+            await activeDbx.filesUpload({
+                path: `/${filename}`,
+                contents: data,
+                mode: 'overwrite'
+            });
+            console.log(`✅ [Dropbox] 업로드 성공: ${filename}`);
+        } catch (err) {
+            console.error(`❌ [Dropbox] 업로드 실패 (${filename}):`, err);
+        }
+    }
+
+    // ✅ F1: State만 저장
     screenshotAndSave() {
         try {
+            console.log("[F1] screenshotAndSave() 시작");
             const rawState = this.getState();
+            
             if (!rawState) {
-                console.warn("⚠️ 세이브 데이터를 추출하지 못했습니다.");
+                console.warn("⚠️ [F1] State 데이터 없음");
                 return;
             }
 
-            const now = new Date();
-            const timestamp = now.getFullYear() +
-                String(now.getMonth() + 1).padStart(2, '0') +
-                String(now.getDate()).padStart(2, '0') + "-" +
-                String(now.getHours()).padStart(2, '0') +
-                String(now.getMinutes()).padStart(2, '0') +
-                String(now.getSeconds()).padStart(2, '0');
-
             const romName = window.EJS_gameID || "retro_game";
+            const timestamp = this.getTimestamp();
             const filename = `${romName}-${timestamp}.state`;
 
-            const blob = new Blob([rawState], { type: "application/octet-stream" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            console.log(`[F1] State 추출 완료 (크기: ${rawState.length} bytes)`);
 
-            // 안전한 다운로드 확보를 위한 지연 파괴법 일괄 적용
-            setTimeout(() => {
-                URL.revokeObjectURL(url);
-            }, 20000);
+            // 1. 브라우저 다운로드 (우선순위 1)
+            this.downloadFile(rawState, filename);
 
-            console.log(`🎯 [GameManager] 로컬 저장 완료! 파일명: ${filename}`);
+            // 2. Dropbox 업로드 (비동기)
+            this.uploadToDropbox(filename, rawState);
+            this.uploadToDropbox(`${romName}.state`, rawState);
 
-            const targetWindow = window.parent || window.top || window.opener || window;
-            const activeDbx = targetWindow.dbx || (targetWindow.Dropbox && targetWindow.Dropbox.dbx) || window.dbx;
-
-            if (activeDbx) {
-                console.log("☁️ [GameManager] 드롭박스 인스턴스를 성공적으로 탈취했습니다! 클라우드 전송 가동");
-                const paths = [`/${romName}.state`, `/${filename}`];
-
-                paths.forEach(savePath => {
-                    activeDbx.filesUpload({
-                        path: savePath,
-                        contents: rawState,
-                        mode: 'overwrite'
-                    })
-                        .then(() => console.log(`✅ [드롭박스 간섭 성공] 클라우드 동기화 완료: ${savePath}`))
-                        .catch(err => console.error("❌ [드롭박스 간섭 실패] 전송 에러:", err));
-                });
-            } else {
-                console.error("⚠️ [GameManager 오류] 부모 페이지(html)에 드롭박스 로그인이 되어있지 않거나 변수명이 dbx가 아닙니다.");
-            }
+            console.log("[F1] 완료!");
         } catch (e) {
-            console.error("❌ 데이터 세이브 진행 중 치명적 예외 에러 발생:", e);
+            console.error("❌ [F1] 오류:", e);
         }
     }
 
+    // ✅ ESC: State + SRM 저장 후 종료
     escapeAndSave() {
         try {
+            console.log("[ESC] escapeAndSave() 시작");
             const rawState = this.getState();
+            
             if (!rawState) {
-                console.warn("⚠️ [ESC Engine] 세이브 데이터를 추출하지 못했습니다.");
+                console.warn("⚠️ [ESC] State 데이터 없음");
                 return;
             }
 
-            const now = new Date();
-            const timestamp = now.getFullYear() +
-                String(now.getMonth() + 1).padStart(2, '0') +
-                String(now.getDate()).padStart(2, '0') + "-" +
-                String(now.getHours()).padStart(2, '0') +
-                String(now.getMinutes()).padStart(2, '0') +
-                String(now.getSeconds()).padStart(2, '0');
-
             const romName = window.EJS_gameID || "retro_game";
-            const timestampFilename = `${romName}-${timestamp}.state`;
+            const timestamp = this.getTimestamp();
+            const stateFilename = `${romName}-${timestamp}.state`;
             const fixedFilename = `${romName}.state`;
 
-            // 1. [로컬 저장 수정] F1처럼 타임스탬프 이름(파일명-날짜-시간.state)으로 로컬 다운로드 유도
-            this.downloadFile(rawState, timestampFilename);
+            console.log(`[ESC] State 추출 완료 (크기: ${rawState.length} bytes)`);
 
-            // 2. [로컬 저장] .srm 파일을 가상 폴더에서 안전하게 추출해 800ms 딜레이를 두고 다운로드
-            const srmData = this.getSaveFile(true); // C++ 내부 세이브 강제 호출 및 srm 버퍼 획득
+            // 1. State 파일 다운로드
+            this.downloadFile(rawState, stateFilename);
+
+            // 2. SRM 파일 추출 및 다운로드
+            const srmData = this.getSaveFile(true);
             if (srmData) {
+                console.log(`[ESC] SRM 추출 완료 (크기: ${srmData.length} bytes)`);
                 setTimeout(() => {
-                    console.log("⏱️ [ESC Engine] 800ms 시차 공격 가동 -> .srm 세이브 파일 다운로드 실행");
+                    console.log("⏱️ [ESC] 800ms 후 SRM 다운로드");
                     this.downloadFile(srmData, `${romName}.srm`);
                 }, 800);
             } else {
-                console.warn("⚠️ [ESC Engine] 배터리 세이브(.srm) 데이터가 비어 있거나 존재하지 않습니다.");
+                console.warn("⚠️ [ESC] SRM 데이터 없음");
             }
 
-            // 3. 드롭박스 클라우드 전송
-            const targetWindow = window.parent || window.top || window.opener || window;
-            const activeDbx = targetWindow.dbx || (targetWindow.Dropbox && targetWindow.Dropbox.dbx) || window.dbx;
-
-            if (activeDbx) {
-                console.log("☁️ [ESC Engine] 클라우드 최종 동기화 세션 개통 완료");
-
-                // [ESC 업로드 수정] F1처럼 자동 세션 로드용 고정 이름과 이력 보존용 타임스탬프 이름을 둘 다 백업합니다.
-                const statePaths = [`/${fixedFilename}`, `/${timestampFilename}`];
-                statePaths.forEach(savePath => {
-                    activeDbx.filesUpload({
-                        path: savePath,
-                        contents: rawState,
-                        mode: 'overwrite'
-                    })
-                        .then(() => console.log(`✅ [ESC 클라우드 백업 성공] 완료: ${savePath}`))
-                        .catch(err => console.error("❌ [ESC 클라우드 백업 실패]:", err));
-                });
-
-                // [srm 클라우드 연동 추가] 배터리 세이브 데이터(.srm)가 존재할 경우 드롭박스 클라우드로 업로드 전송 가동
-                if (srmData) {
-                    activeDbx.filesUpload({
-                        path: `/${romName}.srm`,
-                        contents: srmData,
-                        mode: 'overwrite'
-                    })
-                        .then(() => console.log(`✅ [ESC 클라우드 SRM 백업 성공] 완료: /${romName}.srm`))
-                        .catch(err => console.error("❌ [ESC 클라우드 SRM 백업 실패]:", err));
-                }
-            } else {
-                console.error("⚠️ [GameManager ESC] 부모 페이지에 드롭박스 인스턴스(dbx)가 발견되지 않았습니다.");
+            // 3. Dropbox 업로드
+            this.uploadToDropbox(fixedFilename, rawState);
+            this.uploadToDropbox(stateFilename, rawState);
+            
+            if (srmData) {
+                this.uploadToDropbox(`${romName}.srm`, srmData);
             }
+
+            console.log("[ESC] 저장 완료!");
+
+            // 4. 게임 종료
+            setTimeout(() => {
+                console.log("[ESC] 게임 종료 (새로고침)");
+                location.reload();
+            }, 2000);
+
         } catch (e) {
-            console.error("❌ ESC 데이터 세이브 진행 중 예외 발생:", e);
+            console.error("❌ [ESC] 오류:", e);
+            location.reload();
         }
     }
 
@@ -267,42 +248,6 @@ class EJS_GameManager {
             this.mkdir("/data/saves");
             this.FS.mount(this.FS.filesystems.IDBFS, { autoPersist: true }, "/data/saves");
             this.FS.syncfs(true, async () => {
-                // 💡 [클라우드 SRM 동방향 로드 추가]
-                // 가상 파일 시스템(IDBFS) 마운트 및 로드가 끝나면, 즉시 드롭박스로부터 .srm 배터리 세이브가 있는지 탐색합니다.
-                const romName = window.EJS_gameID || "retro_game";
-                const targetWindow = window.parent || window.top || window.opener || window;
-                const activeDbx = targetWindow.dbx || (targetWindow.Dropbox && targetWindow.Dropbox.dbx) || window.dbx;
-
-                if (activeDbx) {
-                    try {
-                        console.log("☁️ [SRM 연동] 클라우드로부터 배터리 세이브(.srm) 파일 조회를 시작합니다.");
-                        const response = await activeDbx.filesDownload({ path: `/${romName}.srm` });
-                        const arrayBuffer = await response.result.fileBlob.arrayBuffer();
-                        const srmBytes = new Uint8Array(arrayBuffer);
-
-                        let srmPath = "";
-                        try {
-                            srmPath = this.getSaveFilePath();
-                        } catch (e) {
-                            console.warn("getSaveFilePath() 호출 실패, 수동 경로를 빌드합니다.", e);
-                        }
-                        if (!srmPath) {
-                            srmPath = `/data/saves/${romName}.srm`;
-                        }
-
-                        if (srmPath) {
-                            this.writeFile(srmPath, srmBytes);
-                            // 가상 파일 시스템에 주입된 SRM 데이터를 메모리 및 동기화 처리
-                            this.FS.syncfs(false, () => {
-                                console.log("✅ [SRM 연동] 클라우드 배터리 세이브(.srm) 데이터를 파일 시스템에 성공적으로 로드했습니다!");
-                                resolve();
-                            });
-                            return;
-                        }
-                    } catch (err) {
-                        console.log("ℹ️ [SRM 연동] 클라우드에 연동된 배터리 세이브(.srm)가 없습니다. 게임 내부 메모리로 시작합니다.");
-                    }
-                }
                 resolve();
             });
         });
@@ -394,7 +339,6 @@ class EJS_GameManager {
         if (this.EJS.retroarchOpts && Array.isArray(this.EJS.retroarchOpts)) {
             this.EJS.retroarchOpts.forEach(option => {
                 let selected = this.EJS.preGetSetting(option.name);
-                console.log(selected);
                 if (!selected) {
                     selected = option.default;
                 }
