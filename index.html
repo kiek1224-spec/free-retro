@@ -179,6 +179,81 @@
         window.EJS_gameID = currentRomName;
         window.EJS_mysavestate = true;
 
+        // ✅ 게임 시작 시 GameManager에 커스텀 메서드 주입
+    window.EJS_onGameStart = function() {
+        const gm = window.EJS_emulator && window.EJS_emulator.gameManager;
+        if (!gm) { console.warn("⚠️ GameManager 없음"); return; }
+
+        gm.getTimestamp = function() {
+            const n = new Date();
+            return `${n.getFullYear()}${String(n.getMonth()+1).padStart(2,'0')}${String(n.getDate()).padStart(2,'0')}-${String(n.getHours()).padStart(2,'0')}${String(n.getMinutes()).padStart(2,'0')}${String(n.getSeconds()).padStart(2,'0')}`;
+        };
+
+        gm.downloadFile = function(data, filename) {
+            const url = URL.createObjectURL(new Blob([data], {type:"application/octet-stream"}));
+            const a = document.createElement("a");
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 20000);
+            console.log(`📥 다운로드: ${filename}`);
+        };
+
+        gm.uploadToDropbox = async function(filename, data) {
+            if (!window.dbx) return;
+            try {
+                await window.dbx.filesUpload({path:`/${filename}`, contents:data, mode:'overwrite'});
+                console.log(`✅ [Dropbox] ${filename}`);
+            } catch(e) { console.error("❌ Dropbox 업로드 실패:", e); }
+        };
+
+        // F1: 스테이트 세이브
+        gm.screenshotAndSave = function() {
+            try {
+                const rawState = this.getState();
+                if (!rawState || rawState.length === 0) { console.warn("⚠️ State 없음"); return; }
+                const romName = window.EJS_gameID || "retro_game";
+                const ts = this.getTimestamp();
+                this.downloadFile(rawState, `${romName}-${ts}.state`);
+                this.uploadToDropbox(`${romName}.state`, rawState);
+                this.uploadToDropbox(`${romName}-${ts}.state`, rawState);
+                console.log("✅ F1 세이브 완료!");
+            } catch(e) { console.error("❌ F1 에러:", e); }
+        };
+
+        // ESC: 백업 후 종료
+        gm.escapeAndSave = function() {
+            try {
+                const rawState = this.getState();
+                const romName = window.EJS_gameID || "retro_game";
+                const ts = this.getTimestamp();
+                if (rawState && rawState.length > 0) {
+                    this.downloadFile(rawState, `${romName}-${ts}.state`);
+                    this.uploadToDropbox(`${romName}.state`, rawState);
+                }
+                const srmData = this.getSaveFile(true);
+                if (srmData) {
+                    setTimeout(() => this.downloadFile(srmData, `${romName}.srm`), 800);
+                    this.uploadToDropbox(`${romName}.srm`, srmData);
+                }
+                setTimeout(() => location.reload(), 2000);
+            } catch(e) { console.error("❌ ESC 에러:", e); location.reload(); }
+        };
+
+        // SRM 아이콘: 파일명 수정
+        gm.saveSaveFiles = function() {
+            this.functions.saveSaveFiles();
+            const saveData = this.getSaveFile(false);
+            if (saveData && saveData.length > 0) {
+                const romName = window.EJS_gameID || "retro_game";
+                this.downloadFile(saveData, `${romName}.srm`);
+                this.uploadToDropbox(`${romName}.srm`, saveData);
+            }
+        };
+
+        window.EJS_gameManagerInstance = gm;
+        console.log("✅ [SYSTEM] GameManager 커스텀 메서드 주입 완료!");
+    };
+
         // 기본 오토세이브 발생 시 로컬 다운로드 연동
         window.EJS_onSaveState = function (saveData) {
             if (!saveData || !saveData.state) return;
