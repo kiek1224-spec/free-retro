@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 class EJS_GameManager {
     constructor(Module, EJS) {
         this.EJS = EJS;
@@ -660,7 +659,6 @@ class EJS_GameManager {
     }
 }
 
-=======
 class EJS_GameManager {
     constructor(Module, EJS) {
         this.EJS = EJS;
@@ -1308,5 +1306,4 @@ class EJS_GameManager {
     }
 }
 
->>>>>>> parent of b351518 (Add files via upload)
 export { EJS_GameManager };
