@@ -55,15 +55,11 @@ Supported systems:
 
 **Cloud Integration**
 
-ROM files can be loaded from local storage or cloud storage services such as:
+ROM files are loaded from local storage (drag & drop or file picker). Save data (state/SRM) can additionally be synced to:
 
 * Dropbox
 
-* Google Drive
-
-* Naver MYBOX
-
-Dropbox is also used for save file synchronization.
+Google Drive and Naver MYBOX are not integrated — there is no public third-party file API for Naver MYBOX, and Google Drive support would need its own OAuth setup. As a workaround, syncing ROMs through either service's desktop app (which mirrors files to a local folder) works today with no extra code, since Free Retro already loads from local files.
 
 **Save System**
 
@@ -129,13 +125,13 @@ The application only accesses the FreeRetro App Folder. Please do not store unre
 
 **Known Issues**
 
-This project prioritizes functionality over perfection. Current known issues:
+This project prioritizes functionality over perfection.
 
-* Duplicate SRM download may occur when pressing ESC.
+* ~~Duplicate SRM download may occur when pressing ESC.~~ Fixed: a save-in-progress guard now prevents overlapping save triggers (the vendored GameManager.js's exit handler was calling `saveSaveFiles()` twice back-to-back).
 
-* State save generated through ESC may miss timestamp information.
+* ~~State save generated through ESC may miss timestamp information.~~ Fixed: all save paths now share one timestamp helper.
 
-These issues do not affect core gameplay functionality.![](Aspose.Words.a895ccb6-698b-4373-a34a-be21cf075d77.006.png)
+* Loading a file with an unsupported extension used to silently fall back to the NES core; it now shows an error instead.
 
 **Development Philosophy**
 
