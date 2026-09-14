@@ -51,7 +51,19 @@ Supported systems:
 
 * Game Boy Color
 
-* Game Boy Advance!
+* Game Boy Advance
+
+* Nintendo 64 (`.n64` `.z64` `.v64`)
+
+* PlayStation (`.chd` `.cue` `.pbp` `.img` `.iso` — single-file disc images only; a `.cue` split into separate `.bin` tracks won't work since the loader only reads the one dropped file, so `.chd` is the recommended format)
+
+* Sega Genesis / Mega Drive (`.md` `.gen` `.smd` `.sgd`)
+
+* Sega Master System (`.sms`)
+
+* Sega Game Gear (`.gg`)
+
+All the extra cores (mupen64plus_next, pcsx_rearmed, genesis_plus_gx, smsplus) were already sitting in `data/cores/` from the original EmulatorJS vendor drop, so this was purely a `coreMap` change in `index.html` - no new binaries needed.
 
 **Cloud Integration**
 
