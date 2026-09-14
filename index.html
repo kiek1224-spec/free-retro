@@ -59,6 +59,18 @@
     const DROPBOX_APP_KEY = 'mxdgeyz3f1eq5nm';
     let isGray = false, isNight = false, isRatio43 = false, isGameRunning = false;
     let currentRomName = 'retro_game', dbx = null, dropboxToken = localStorage.getItem('db_token');
+    // GameManager.js의 종료 핸들러가 saveSaveFiles()를 연속 두 번 호출하는 등, 저장 트리거가 짧은 간격으로
+    // 중복 발생할 수 있어 이 플래그로 재진입을 막는다 (중복 다운로드/업로드 방지).
+    let isSaving = false;
+    function withSaveGuard(fn) {
+        if (isSaving) { console.warn("⏳ [SYSTEM] 이미 저장 진행 중 - 중복 호출 무시"); return; }
+        isSaving = true;
+        try { fn(); } finally { setTimeout(() => { isSaving = false; }, 1500); }
+    }
+    function makeTimestamp() {
+        const n = new Date();
+        return `${n.getFullYear()}${String(n.getMonth()+1).padStart(2,'0')}${String(n.getDate()).padStart(2,'0')}-${String(n.getHours()).padStart(2,'0')}${String(n.getMinutes()).padStart(2,'0')}${String(n.getSeconds()).padStart(2,'0')}`;
+    }
 
     const gameWrapper = document.getElementById('game-wrapper');
     const gameContainer = document.getElementById('game-container');
@@ -148,6 +160,14 @@
     // 🎮 에뮬레이터 가동 함수
     async function startEmulator(file) {
         if (!file) return;
+
+        const ext = file.name.split('.').pop().toLowerCase();
+        const coreMap = { 'nes': 'nes', 'sfc': 'snes', 'smc': 'snes', 'gb': 'gb', 'gbc': 'gb', 'gba': 'gba' };
+        if (!coreMap[ext]) {
+            alert(`지원하지 않는 파일 형식입니다: .${ext}\n지원 확장자: ${Object.keys(coreMap).join(', ')}`);
+            return;
+        }
+
         currentRomName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
 
         if (dbx) {
@@ -171,23 +191,17 @@
 
         window.EJS_player = '#game-container';
         window.EJS_gameUrl = URL.createObjectURL(file);
-        const ext = file.name.split('.').pop().toLowerCase();
-        const coreMap = { 'nes': 'nes', 'sfc': 'snes', 'smc': 'snes', 'gb': 'gb', 'gbc': 'gb', 'gba': 'gba' };
-        window.EJS_core = coreMap[ext] || 'nes';
-        window.EJS_pathtodata = 'data/'; 
+        window.EJS_core = coreMap[ext];
+        window.EJS_pathtodata = 'data/';
         window.EJS_startOnLoaded = true;
         window.EJS_gameID = currentRomName;
-        window.EJS_mysavestate = true;
 
         // ✅ 게임 시작 시 GameManager에 커스텀 메서드 주입
     window.EJS_onGameStart = function() {
         const gm = window.EJS_emulator && window.EJS_emulator.gameManager;
         if (!gm) { console.warn("⚠️ GameManager 없음"); return; }
 
-        gm.getTimestamp = function() {
-            const n = new Date();
-            return `${n.getFullYear()}${String(n.getMonth()+1).padStart(2,'0')}${String(n.getDate()).padStart(2,'0')}-${String(n.getHours()).padStart(2,'0')}${String(n.getMinutes()).padStart(2,'0')}${String(n.getSeconds()).padStart(2,'0')}`;
-        };
+        gm.getTimestamp = makeTimestamp;
 
         gm.downloadFile = function(data, filename) {
             const url = URL.createObjectURL(new Blob([data], {type:"application/octet-stream"}));
@@ -208,61 +222,74 @@
 
         // F1: 스테이트 세이브
         gm.screenshotAndSave = function() {
-            try {
-                const rawState = this.getState();
-                if (!rawState || rawState.length === 0) { console.warn("⚠️ State 없음"); return; }
-                const romName = window.EJS_gameID || "retro_game";
-                const ts = this.getTimestamp();
-                this.downloadFile(rawState, `${romName}-${ts}.state`);
-                this.uploadToDropbox(`${romName}.state`, rawState);
-                this.uploadToDropbox(`${romName}-${ts}.state`, rawState);
-                console.log("✅ F1 세이브 완료!");
-            } catch(e) { console.error("❌ F1 에러:", e); }
+            withSaveGuard(() => {
+                try {
+                    const rawState = this.getState();
+                    if (!rawState || rawState.length === 0) { console.warn("⚠️ State 없음"); return; }
+                    const romName = window.EJS_gameID || "retro_game";
+                    const ts = this.getTimestamp();
+                    // Dropbox가 연결돼 있으면 로컬 다운로드는 생략(클라우드가 곧 백업이므로 다운로드 스팸 방지)
+                    if (!window.dbx) this.downloadFile(rawState, `${romName}-${ts}.state`);
+                    this.uploadToDropbox(`${romName}.state`, rawState);
+                    this.uploadToDropbox(`${romName}-${ts}.state`, rawState);
+                    console.log("✅ F1 세이브 완료!");
+                } catch(e) { console.error("❌ F1 에러:", e); }
+            });
         };
 
-        // ESC: 백업 후 종료
+        // ESC: 백업 후 종료 (저장이 이미 진행 중이었어도 종료/새로고침 자체는 항상 수행)
         gm.escapeAndSave = function() {
-            try {
-                const rawState = this.getState();
-                const romName = window.EJS_gameID || "retro_game";
-                const ts = this.getTimestamp();
-                if (rawState && rawState.length > 0) {
-                    this.downloadFile(rawState, `${romName}-${ts}.state`);
-                    this.uploadToDropbox(`${romName}.state`, rawState);
-                }
-                const srmData = this.getSaveFile(true);
-                if (srmData) {
-                    setTimeout(() => this.downloadFile(srmData, `${romName}.srm`), 800);
-                    this.uploadToDropbox(`${romName}.srm`, srmData);
-                }
-                setTimeout(() => location.reload(), 2000);
-            } catch(e) { console.error("❌ ESC 에러:", e); location.reload(); }
+            const self = this;
+            let saved = false;
+            withSaveGuard(() => {
+                saved = true;
+                try {
+                    const rawState = self.getState();
+                    const romName = window.EJS_gameID || "retro_game";
+                    const ts = self.getTimestamp();
+                    if (rawState && rawState.length > 0) {
+                        if (!window.dbx) self.downloadFile(rawState, `${romName}-${ts}.state`);
+                        self.uploadToDropbox(`${romName}.state`, rawState);
+                    }
+                    const srmData = self.getSaveFile(true);
+                    if (srmData) {
+                        if (!window.dbx) setTimeout(() => self.downloadFile(srmData, `${romName}.srm`), 800);
+                        self.uploadToDropbox(`${romName}.srm`, srmData);
+                    }
+                } catch(e) { console.error("❌ ESC 에러:", e); }
+            });
+            if (!saved) console.warn("⏳ [ESC] 이미 저장 진행 중이라 이번 저장은 건너뜀 (종료는 진행)");
+            setTimeout(() => location.reload(), 2000);
         };
 
         // SRM 아이콘: 파일명 수정
         gm.saveSaveFiles = function() {
-            this.functions.saveSaveFiles();
-            const saveData = this.getSaveFile(false);
-            if (saveData && saveData.length > 0) {
-                const romName = window.EJS_gameID || "retro_game";
-                this.downloadFile(saveData, `${romName}.srm`);
-                this.uploadToDropbox(`${romName}.srm`, saveData);
-            }
+            withSaveGuard(() => {
+                this.functions.saveSaveFiles();
+                const saveData = this.getSaveFile(false);
+                if (saveData && saveData.length > 0) {
+                    const romName = window.EJS_gameID || "retro_game";
+                    if (!window.dbx) this.downloadFile(saveData, `${romName}.srm`);
+                    this.uploadToDropbox(`${romName}.srm`, saveData);
+                }
+            });
         };
 
         window.EJS_gameManagerInstance = gm;
         console.log("✅ [SYSTEM] GameManager 커스텀 메서드 주입 완료!");
     };
 
-        // 기본 오토세이브 발생 시 로컬 다운로드 연동
+        // EmulatorJS 자체 '세이브 스테이트' 버튼을 눌렀을 때 호출됨 (F1/ESC와는 별도 경로)
         window.EJS_onSaveState = function (saveData) {
             if (!saveData || !saveData.state) return;
+            if (isSaving) { console.warn("⏳ [SYSTEM] 다른 저장이 진행 중이라 이번 스냅샷은 건너뜀"); return; }
             console.log("[SYSTEM] 에뮬레이터가 정상 스냅샷 데이터를 추출했습니다.");
 
+            const ts = makeTimestamp();
             const blob = new Blob([saveData.state], { type: "application/octet-stream" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
-            a.href = url; a.download = `${currentRomName}.state`;
+            a.href = url; a.download = `${currentRomName}-${ts}.state`;
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
             URL.revokeObjectURL(url);
         };
