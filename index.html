@@ -46,7 +46,7 @@
         <div id="drop-zone" class="upload-area">
             <h1>나만의 레트로 게임기</h1>
             <p>롬 파일을 드래그하거나 클릭하세요</p>
-            <input type="file" id="file-input" hidden accept=".nes,.sfc,.smc,.gb,.gbc,.gba" />
+            <input type="file" id="file-input" hidden accept=".nes,.sfc,.smc,.gb,.gbc,.gba,.n64,.z64,.v64,.chd,.cue,.pbp,.img,.iso,.md,.gen,.smd,.sgd,.sms,.gg" />
         </div>
     </div>
 
@@ -162,7 +162,18 @@
         if (!file) return;
 
         const ext = file.name.split('.').pop().toLowerCase();
-        const coreMap = { 'nes': 'nes', 'sfc': 'snes', 'smc': 'snes', 'gb': 'gb', 'gbc': 'gb', 'gba': 'gba' };
+        const coreMap = {
+            'nes': 'nes', 'sfc': 'snes', 'smc': 'snes', 'gb': 'gb', 'gbc': 'gb', 'gba': 'gba',
+            // N64
+            'n64': 'n64', 'z64': 'n64', 'v64': 'n64',
+            // PS1 - 단일 파일 디스크 이미지만 지원(드래그앤드롭이 파일 1개만 받음).
+            // .cue+.bin처럼 트랙이 분리된 멀티파일 게임은 안 됨 - .chd(압축 단일파일)를 권장.
+            'chd': 'psx', 'cue': 'psx', 'pbp': 'psx', 'img': 'psx', 'iso': 'psx',
+            // Sega Genesis/Mega Drive
+            'md': 'segaMD', 'gen': 'segaMD', 'smd': 'segaMD', 'sgd': 'segaMD',
+            // Sega Master System / Game Gear
+            'sms': 'segaMS', 'gg': 'segaGG',
+        };
         if (!coreMap[ext]) {
             alert(`지원하지 않는 파일 형식입니다: .${ext}\n지원 확장자: ${Object.keys(coreMap).join(', ')}`);
             return;
