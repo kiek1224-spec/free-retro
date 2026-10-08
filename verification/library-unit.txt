@@ -1,0 +1,44 @@
+✔ artwork signatures identify raster formats without trusting a filename or MIME label (1.6393ms)
+✔ empty, oversized, and SVG files are rejected before image decoding (1.8744ms)
+✔ normalization downsizes wide images, re-encodes WebP, and closes the decoded bitmap (2.0184ms)
+✔ unsupported WebP encoder falls back to PNG without enlarging a small image (0.8937ms)
+✔ pixel limits reject decompressed giant images and still release bitmap memory (0.799ms)
+✔ invalid raster bytes fail decoding, and a failed PNG fallback still releases the bitmap (0.8831ms)
+✔ cloud consent validates scope and bound account; reconnect never silently switches accounts (52.8281ms)
+✔ picked ROM downloads exact bytes through GET and clears the timeout (54.7887ms)
+✔ Picker cancellation does not download a file or allocate a download timer (0.3981ms)
+✔ download timeout aborts the pending request, reports timeout and clears its timer (3.2997ms)
+✔ download timeout aborts the pending body, reports timeout and clears its timer (0.4142ms)
+✔ Drive Picker CANCEL restores modal mode after queued transition-close events (3.1645ms)
+✔ Drive Picker error restores modal mode and releases background inert state (0.6506ms)
+✔ explicit cancellation discards the old request; its late return cannot unlock or close a new Picker session (0.6744ms)
+✔ platform sidebar describes every supported system exactly once (1.7262ms)
+✔ directory import keeps original files and paths, skipping docs and artwork (0.8257ms)
+✔ plain selection, mixed directory roots, and empty selection do not invent a folder (0.3692ms)
+✔ unsupported multi-file disc inputs are skipped rather than sent to a core (1.6365ms)
+✔ duplicate import updates folder and artwork while preserving saves and personal settings (0.699ms)
+✔ duplicate import without explicit folder or artwork retains both originals (0.2624ms)
+✔ collection names are trimmed, length bounded, and reject hidden control characters (0.5321ms)
+✔ same content has same save identity, changed ROM never shares saves (8.8638ms)
+✔ ambiguous multi-file disc and unknown inputs are rejected (0.6189ms)
+✔ smart folders combine filters without losing unplayed items (1.0316ms)
+✔ backup rejects other ROM or core before importing bytes (0.4401ms)
+✔ typing, modifier keys and repeated keys never trigger save (0.2343ms)
+✔ Drive configuration cannot accidentally contain a client secret (0.2924ms)
+✔ RTC advances, resets, and preserves Date parsing and explicit timestamps (3.0622ms)
+✔ cloud roundtrip preserves real state, SRAM and profile RTC; detects corruption (7.5685ms)
+✔ concurrent devices keep both saves and repeated sync is idempotent (2.827ms)
+✔ lost upload response retries by remote revision without duplicating or losing queue (1.0583ms)
+✔ acknowledging old automatic save cannot remove newer revision queued during upload (1.5762ms)
+✔ offline or expired authorization never discards pending local save (0.7252ms)
+✔ Drive protocol uses private appdata, pagination and immutable multipart writes (28.4572ms)
+✔ corrupt remote record is held aside; unavailable transport retries (1.5361ms)
+✔ launching a different ROM while syncing waits for its own download (2.1918ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 465.3807

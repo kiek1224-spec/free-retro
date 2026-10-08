@@ -87,22 +87,30 @@ export async function pickGame(config) {
     picker.setVisible(true);
   });
   if (!file) return null;
-  const response = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media`,
-    { headers: { Authorization: `Bearer ${token}` } },
-  );
-  if (!response.ok) {
-    if (response.status === 401) {
-      token = null;
-      expires = 0;
-    }
-    throw new Error(
-      `Drive 다운로드 실패 (${response.status}). 연결과 파일 권한을 확인하세요.`,
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media`,
+      { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal },
     );
-  }
-  return new File([await response.blob()], file.name, {
-    type: "application/octet-stream",
-  });
+    if (!response.ok) {
+      if (response.status === 401) {
+        token = null;
+        expires = 0;
+      }
+      throw new Error(
+        `Drive 다운로드 실패 (${response.status}). 연결과 파일 권한을 확인하세요.`,
+      );
+    }
+    return new File([await response.blob()], file.name, {
+      type: "application/octet-stream",
+    });
+  } catch (error) {
+    if (controller.signal.aborted)
+      throw new Error("Drive 다운로드 시간이 초과됐습니다. 연결을 확인하고 다시 선택하세요.");
+    throw error;
+  } finally { clearTimeout(timeout); }
 }
 
 async function authorize(config, scopes) {

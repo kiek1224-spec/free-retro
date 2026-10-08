@@ -203,6 +203,9 @@ a:hover {
   align-self:start;
   padding:14px 0;
   min-width:0;
+  max-height:calc(100dvh - 48px);
+  overflow:auto;
+  scrollbar-width:thin;
 }
 
 .nav-label {
@@ -1534,4 +1537,59 @@ body.dragover main {
   .game-card:hover .game-art img {
     transform:rotate(-9deg);
   }
+}
+.platform-section { margin:28px 0 0; border-top:1px solid var(--line); padding-top:17px; }
+.platform-section summary { display:flex; justify-content:space-between; font-size:11px; color:#b0beb4; padding:8px 12px; cursor:pointer; list-style:none; }
+.platform-label { font:9px Consolas,monospace; letter-spacing:1.5px; color:#76877b; margin:20px 12px 8px; }
+.platform-item { display:flex; align-items:center; width:100%; gap:8px; padding:10px 8px; min-height:44px; background:transparent; border-color:transparent; color:#a8b6af; font-size:11px; text-align:left; }
+.platform-icon { font-size:18px; color:#7d9081; width:20px; text-align:center; flex-shrink:0; }
+.platform-item b { margin-left:auto; font:10px Consolas,monospace; color:#75867a; }
+.platform-item.active { background:#233027; border-color:#344638; color:var(--accent); }
+.platform-item.active b,.platform-item.active .platform-icon { color:var(--accent); }
+.platform-item:hover { background:#1c261f; }
+.game-art { height:225px; }
+.game-art.custom-art { display:block; background:#1e2421; padding:8px; }
+.game-art.custom-art img,.game-card:hover .game-art.custom-art img { width:100%; height:100%; margin:0; object-fit:contain; transform:none; filter:none; }
+.custom-art .art-caption-small,.custom-art .art-system,.custom-art:before { display:none; }
+.artwork-editor { display:flex; align-items:center; gap:16px; padding:16px 0; }
+.artwork-editor img { width:94px; height:118px; object-fit:contain; background:#202a23; border:1px solid var(--line); border-radius:8px; }
+.artwork-editor p { margin:8px 0; }
+.artwork-editor button { font-size:12px; }
+.import-dialog { width:660px; max-width:calc(100vw - 32px); }
+.import-dialog.drive-picker-active { position:fixed; top:50%; transform:translateY(-50%); z-index:100; }
+.import-sources { display:flex; gap:8px; flex-wrap:wrap; margin:18px 0; }
+.import-sources button { flex:1; white-space:nowrap; font-size:12px; }
+.import-folder-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.import-folder-row label { min-width:0; }
+.import-folder-row select { width:100%; }
+.import-list { max-height:36dvh; overflow:auto; scrollbar-width:thin; }
+.import-item { display:flex; align-items:center; gap:14px; border:1px solid var(--line); border-radius:10px; padding:10px; margin:8px 0; background:#18201b; }
+.import-item>img { width:54px; height:68px; object-fit:contain; flex-shrink:0; background:#232d25; border-radius:4px; }
+.import-item-info { flex:1; min-width:0; }
+.import-item-info b { display:block; font-size:13px; overflow-wrap:anywhere; }
+.import-item-info small { display:block; color:var(--muted); margin-top:6px; }
+.import-item-actions { display:flex; gap:6px; flex-direction:column; }
+.import-item-actions button { font-size:11px; padding:8px 10px; }
+.import-error { color:#f9a78e; font-size:12px; margin:6px 0 0; }
+.dialog-actions { margin-top:20px; }
+[hidden] { display:none!important; }
+@media(max-width:900px) {
+  .library-nav { max-height:none; overflow:visible; }
+  .platform-section { margin:14px 0 0; padding:0; border:1px solid var(--line); border-radius:8px; background:#171e19; }
+  .platform-section summary { min-height:44px; align-items:center; padding:10px 14px; }
+  #platform-list { padding:0 12px 12px; display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+  .platform-label { grid-column:1/-1; margin:14px 8px 4px; }
+}
+@media(max-width:600px) {
+  .game-art { height:190px; }
+  .game-art.custom-art { padding:5px; }
+  .import-folder-row { grid-template-columns:1fr; }
+  .import-dialog { padding:20px 16px; }
+  .import-sources button { flex:auto; min-height:44px; }
+  .import-item { flex-wrap:wrap; gap:10px; }
+  .import-item-actions { width:100%; flex-direction:row; }
+  .import-item-actions button { min-height:44px; }
+  .artwork-editor { align-items:flex-start; gap:12px; }
+  .artwork-editor img { width:72px; height:100px; }
+  .artwork-editor .row { flex-wrap:wrap; }
 }

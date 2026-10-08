@@ -25,6 +25,10 @@
           <button class="nav-item" data-view="recent" aria-pressed="false"><span aria-hidden="true">◷</span>최근 플레이</button>
           <button class="nav-item" data-view="unplayed" aria-pressed="false"><span aria-hidden="true">▷</span>아직 안 해본 게임</button>
         </nav>
+        <details id="platform-sidebar" class="platform-section" open>
+          <summary>플랫폼 <span aria-hidden="true">⌄</span></summary>
+          <div id="platform-list"></div>
+        </details>
         <div class="nav-note"><span class="pixel-heart" aria-hidden="true">♥</span><b>좋아하던 그 순간으로.</b><p>내 게임, 내 속도.<br>언제든 저장하고 이어서.</p><span class="note-line"></span><small>MADE FOR YOUR NEXT PLAY</small></div>
         <div class="nav-bottom"><span class="status-light"></span> 브라우저에 로컬 저장</div>
       </aside>
@@ -291,7 +295,7 @@
       </p>
     </dialog>
     <dialog id="edit-game">
-      <form method="dialog">
+      <form id="edit-form">
         <h2>게임 정리</h2>
         <input id="edit-id" hidden /><label
           >게임 이름<input id="edit-title" required maxlength="150" /></label
@@ -303,10 +307,30 @@
         ><label class="check"
           ><input id="edit-favorite" type="checkbox" />즐겨찾기</label
         >
-        <div class="row">
-          <button id="edit-save" class="primary" type="button">저장</button
-          ><button>취소</button>
+        <div class="artwork-editor">
+          <img id="edit-artwork-preview" src="app/assets/cartridge.svg" alt="선택한 아트워크 미리보기" />
+          <div><b>아트워크</b><p class="small">PNG · JPG · WebP, 최대 10 MB<br>이미지는 이 브라우저에 보관합니다.</p><div class="row"><button id="edit-artwork" type="button">이미지 선택</button><button id="edit-artwork-reset" type="button">기본 표지</button></div></div>
         </div>
+        <div class="row">
+          <button id="edit-save" class="primary" type="submit">저장</button
+          ><button id="edit-cancel" type="button">취소</button>
+        </div>
+      </form>
+    </dialog>
+    <input id="directory-input" type="file" webkitdirectory multiple hidden />
+    <input id="artwork-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+    <datalist id="folder-options"></datalist>
+    <dialog id="import-game" class="import-dialog">
+      <form id="import-form">
+        <p class="eyebrow">BUILD YOUR COLLECTION</p><h2>게임 추가</h2>
+        <p class="small">파일이나 ROM 폴더를 선택한 뒤, 폴더와 표지를 정하세요.</p>
+        <div class="import-sources"><button id="choose-files" type="button">＋ ROM 파일 선택</button><button id="choose-directory" type="button">▣ ROM 폴더 선택</button><button id="choose-drive" type="button">Drive에서 선택 ↗</button></div>
+        <p id="directory-hint" class="small subtle" hidden>이 브라우저에서는 ROM 파일을 여러 개 선택해 주세요.</p>
+        <div class="import-folder-row"><label>저장할 컬렉션 폴더<select id="import-folder"><option value="">미분류</option></select></label><label id="new-folder-label" hidden>새 폴더 이름<input id="import-new-folder" maxlength="80" placeholder="예: 한글 RPG" /></label></div>
+        <p id="import-status" class="small" role="status">선택한 게임이 없습니다.</p>
+        <div id="import-list" class="import-list"></div>
+        <p class="small subtle">아트워크: PNG · JPG · WebP, 최대 10 MB. 같은 ROM을 다시 선택하면 세이브는 유지하고 지정한 폴더와 표지만 반영합니다.</p>
+        <div class="row dialog-actions"><button id="import-save" class="primary" type="submit" disabled>게임함에 추가</button><button id="import-cancel" type="button">취소</button></div>
       </form>
     </dialog>
     <dialog id="name-dialog">

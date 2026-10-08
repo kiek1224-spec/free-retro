@@ -1,6 +1,5 @@
 import {
   SYSTEMS,
-  coreFor,
   romId,
   filterGames,
   validateBackup,
@@ -18,6 +17,8 @@ import {
 import { createSynchronizer } from "./sync.js";
 import { driveStore } from "./drive-store.js";
 import { validOffset } from "./clock.js";
+import { PLATFORM_GROUPS } from "./library.js";
+import { createLibraryUI } from "./library-ui.js";
 const $ = (id) => document.getElementById(id);
 let selectedSystem = "",
   featuredId;
@@ -34,8 +35,8 @@ let games = [],
   toastTimer,
   requestId = 0,
   macroRecording = false,
-  exiting = false,
-  importing = false;
+  exiting = false;
+let cardURLs = [];
 const pending = new Map();
 let cloudEnabled = false,
   deviceId,
@@ -200,6 +201,8 @@ function render() {
     view: $("view-filter").value,
     folder: $("folder-filter").value,
   }).filter((g) => !selectedSystem || g.core === selectedSystem);
+  for (const url of cardURLs) URL.revokeObjectURL(url);
+  cardURLs = [];
   $("games").replaceChildren();
   $("game-count").textContent = games.length;
   $("nav-count").textContent = $("hero-game-count").textContent = games.length;
@@ -225,6 +228,7 @@ function render() {
     if (selectedSystem === core) tab.classList.add("active");
     $("system-tabs").append(tab);
   }
+  renderPlatforms();
   for (const nav of document.querySelectorAll("[data-view]")) {
     const active = nav.dataset.view === $("view-filter").value;
     nav.classList.toggle("active", active);
@@ -251,7 +255,8 @@ function render() {
     art.className = "game-art";
     card.dataset.core = g.core;
     const cover = document.createElement("img");
-    cover.src = "app/assets/cartridge.svg";
+    cover.src = g.artwork instanceof Blob ? URL.createObjectURL(g.artwork) : "app/assets/cartridge.svg";
+    if (g.artwork instanceof Blob) { cardURLs.push(cover.src); art.classList.add("custom-art"); }
     cover.alt = "";
     cover.loading = "lazy";
     const system = document.createElement("span");
@@ -282,7 +287,7 @@ function render() {
         () => launch(g.id),
         "primary",
       ),
-      button("정리", () => editGame(g.id)),
+      button("정리", () => libraryUI.editGame(g.id)),
     );
     const body = document.createElement("div");
     body.className = "card-body";
@@ -291,71 +296,36 @@ function render() {
     $("games").append(card);
   }
 }
-async function addFiles(files, source = "local") {
-  if (importing)
-    throw new Error("게임을 추가하는 중입니다. 잠시 기다려주세요.");
-  importing = true;
-  $("add-local").disabled = true;
-  $("add-drive").disabled = true;
-  let count = 0;
-  const failures = [];
-  try {
-    for (const file of files) {
-      try {
-        const core = coreFor(file.name);
-        if (!file.size) throw new Error(`${file.name}: 빈 파일입니다.`);
-        if (file.size > 512 * 1048576)
-          throw new Error(
-            `${file.name}: 현재 버전은 512 MB 이하 단일 파일을 지원합니다.`,
-          );
-        const id = await romId(file);
-        const old = await store.getGame(id);
-        if (old) {
-          count++;
-          continue;
-        }
-        await store.putGame({
-          id,
-          title: file.name.replace(/\.[^.]+$/, ""),
-          filename: file.name,
-          core,
-          blob: file,
-          size: file.size,
-          source,
-          folder: "",
-          favorite: false,
-          added: Date.now(),
-          lastPlayed: 0,
-          profiles: ["기본"],
-          macros: [],
-        });
-        count++;
-      } catch (e) {
-        failures.push(e.message);
-      }
+function renderPlatforms() {
+  const focused = document.activeElement?.closest(".platform-item")?.dataset.core;
+  $("platform-list").replaceChildren();
+  for (const group of PLATFORM_GROUPS) {
+    const label = document.createElement("p"); label.className = "platform-label"; label.textContent = group.label;
+    $("platform-list").append(label);
+    for (const platform of group.platforms) {
+      const item = button("", () => {
+        const keepFocus = document.activeElement === item;
+        selectedSystem = platform.core;
+        $("view-filter").value = "all";
+        render();
+        if (keepFocus) [...$("platform-list").querySelectorAll("button")].find(el => el.dataset.core === platform.core)?.focus({ preventScroll: true });
+      }, "platform-item");
+      item.dataset.core = platform.core;
+      item.classList.toggle("active", selectedSystem === platform.core);
+      item.setAttribute("aria-pressed", String(selectedSystem === platform.core));
+      const icon = document.createElement("span"); icon.className = "platform-icon"; icon.setAttribute("aria-hidden", "true");
+      icon.textContent = platform.icon === "handheld" ? "▣" : platform.icon === "disc" ? "◎" : "▤";
+      const name = document.createElement("span"); name.textContent = platform.name;
+      const count = document.createElement("b"); count.textContent = games.filter(g => g.core === platform.core).length;
+      item.append(icon, name, count); $("platform-list").append(item);
     }
-    await refresh();
-    toast(
-      failures.length
-        ? `${count}개 추가. ${failures.join(" / ")}`
-        : `${count}개 게임을 게임함에 담았습니다.`,
-    );
-    navigator.storage?.persist?.().catch(() => {});
-  } finally {
-    importing = false;
-    $("add-local").disabled = false;
-    $("add-drive").disabled = false;
-    $("rom-input").value = "";
   }
+  if (focused) [...$("platform-list").querySelectorAll("button")].find(el => el.dataset.core === focused)?.focus({ preventScroll: true });
 }
-function editGame(id) {
-  const g = games.find((g) => g.id === id);
-  $("edit-id").value = id;
-  $("edit-title").value = g.title;
-  $("edit-folder").value = g.folder;
-  $("edit-favorite").checked = !!g.favorite;
-  $("edit-game").showModal();
-}
+const libraryUI = createLibraryUI({ $, store, handle, toast, getGames: () => games, refresh, getDriveConfig: () => driveConfig, pickGame, validConfig });
+const platformViewport = matchMedia("(max-width: 900px)");
+function resizePlatforms() { $("platform-sidebar").open = !platformViewport.matches; }
+resizePlatforms(); platformViewport.addEventListener("change", resizePlatforms);
 async function launch(id) {
   if (current) throw new Error("현재 게임을 먼저 종료하세요.");
   if (cloudEnabled)
@@ -650,8 +620,7 @@ async function backup() {
 }
 for (const id of ["search", "view-filter", "folder-filter"])
   $(id).addEventListener(id === "search" ? "input" : "change", render);
-$("add-local").onclick = () => $("rom-input").click();
-$("rom-input").onchange = handle((e) => addFiles([...e.target.files]));
+$("add-local").onclick = libraryUI.openImport;
 window.addEventListener("dragover", (e) => {
   e.preventDefault();
   if (!current) document.body.classList.add("dragover");
@@ -665,20 +634,9 @@ window.addEventListener(
     e.preventDefault();
     document.body.classList.remove("dragover");
     if (!current && e.dataTransfer.files.length)
-      await addFiles([...e.dataTransfer.files]);
+      libraryUI.stageFiles([...e.dataTransfer.files]);
   }),
 );
-$("edit-save").onclick = handle(async () => {
-  const title = $("edit-title").value.trim();
-  if (!title) return;
-  const g = await store.getGame($("edit-id").value);
-  g.title = title;
-  g.folder = $("edit-folder").value.trim();
-  g.favorite = $("edit-favorite").checked;
-  await store.putGame(g);
-  $("edit-game").close();
-  await refresh();
-});
 $("settings-open").onclick = () => {
   $("drive-client").value = driveConfig.clientId || "";
   $("drive-key").value = driveConfig.apiKey || "";
@@ -706,14 +664,7 @@ $("disconnect-drive").onclick = () => {
   cloudStatus("Drive 연결 해제 · 재연결할 때까지 로컬 저장");
   toast("이 브라우저의 Drive 연결을 해제했습니다.");
 };
-$("add-drive").onclick = handle(async () => {
-  if (!validConfig(driveConfig)) {
-    $("settings-open").click();
-    return;
-  }
-  const file = await pickGame(driveConfig);
-  if (file) await addFiles([file], "drive");
-});
+$("add-drive").onclick = () => { libraryUI.openImport(); $("choose-drive").focus(); };
 $("save-state").onclick = handle(() => save());
 $("exit-game").onclick = handle(exit);
 $("pause-game").onclick = handle(pause);
@@ -940,6 +891,7 @@ try {
 for (const nav of document.querySelectorAll("[data-view]")) {
   nav.onclick = () => {
     $("view-filter").value = nav.dataset.view;
+    selectedSystem = "";
     render();
   };
 }
