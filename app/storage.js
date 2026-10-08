@@ -7,10 +7,11 @@ let database;
 export async function openStore() {
   if (!database)
     database = new Promise((resolve, reject) => {
-      const req = indexedDB.open("free-retro-library", 1);
+      const req = indexedDB.open("free-retro-library", 2);
       req.onupgradeneeded = () => {
-        for (const name of ["games", "states", "settings"])
-          req.result.createObjectStore(name, { keyPath: "id" });
+        for (const name of ["games", "states", "settings", "outbox"])
+          if (!req.result.objectStoreNames.contains(name))
+            req.result.createObjectStore(name, { keyPath: "id" });
       };
       req.onsuccess = () => {
         const db = req.result;
@@ -57,10 +58,63 @@ export async function statesFor(romId, profile) {
 export async function putState(state) {
   if (!(state.data instanceof Blob) || !state.data.size)
     throw new Error("빈 저장 상태입니다.");
-  await write("states", [state]);
+  state.syncId ||= crypto.randomUUID();
+  const db = await openStore();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(["states", "outbox"], "readwrite");
+    tx.objectStore("states").put(state);
+    if (!state.cloudSaved) tx.objectStore("outbox").put(state);
+    tx.oncomplete = resolve;
+    tx.onabort = tx.onerror = () => reject(tx.error);
+  });
 }
 export async function importStates(states) {
-  await write("states", states);
+  for (const state of states) await putState(state);
+}
+export async function pendingStates() {
+  const db = await openStore();
+  return request(db.transaction("outbox").objectStore("outbox").getAll());
+}
+export async function acknowledge(id, syncId) {
+  const db = await openStore();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(["outbox", "states", "settings"], "readwrite");
+    tx.objectStore("settings").put({ id: `seen:${syncId}`, value: true });
+    for (const name of ["outbox", "states"]) {
+      const target = tx.objectStore(name),
+        req = target.get(id);
+      req.onsuccess = () => {
+        if (req.result?.syncId !== syncId) return;
+        if (name === "outbox") target.delete(id);
+        else target.put({ ...req.result, cloudSaved: true });
+      };
+    }
+    tx.oncomplete = resolve;
+    tx.onabort = tx.onerror = () => reject(tx.error);
+  });
+}
+export async function hasSnapshot(syncId) {
+  return !!(await setting(`seen:${syncId}`));
+}
+export async function receive(state) {
+  const game = await getGame(state.romId);
+  if (game && game.core !== state.core)
+    throw new Error("이 ROM의 코어와 클라우드 저장 코어가 다릅니다.");
+  const db = await openStore();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(["states", "settings"], "readwrite");
+    tx.objectStore("states").put(state);
+    tx.objectStore("settings").put({ id: `seen:${state.syncId}`, value: true });
+    tx.oncomplete = resolve;
+    tx.onabort = tx.onerror = () => reject(tx.error);
+  });
+}
+export async function enqueueExisting() {
+  const db = await openStore();
+  const states = await request(
+    db.transaction("states").objectStore("states").getAll(),
+  );
+  for (const state of states) if (!state.cloudSaved) await putState(state);
 }
 export async function setting(id) {
   const db = await openStore();

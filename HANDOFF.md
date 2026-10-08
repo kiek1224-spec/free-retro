@@ -6,6 +6,10 @@
 
 새 앱: index.html과 app/. 기존 Dropbox 페이지: legacy.html. 실행/Drive 준비: README-BROWSER.md. 확인한 결과와 한계: verification/README.md 및 runtime.txt.
 
-남은 검증: Google OAuth/Picker 실제 선택 다운로드, 실제 Android/iOS 터치와 저장 유지, 다른 시스템 코어/BIOS, SRAM 게임의 SRM 가져오기·내보내기, 실제 게임 치트·셰이더. 아직 구현하지 않은 기능: 전용 RTC 조작, Drive 세이브 자동 동기화, 멀티플레이/업적. 상태 JSON 수동 백업으로 기기 간 이전할 수 있습니다.
+남은 검증: Google OAuth/Picker 실제 선택 다운로드, 실제 Android/iOS 터치와 저장 유지, 다른 시스템 코어/BIOS, 실제 상용 게임의 SRM 호환성, 실제 게임 치트·셰이더. RTC와 Drive 세이브 자동 동기화를 구현했습니다. 아직 구현하지 않은 기능: 멀티플레이/업적. 상태 JSON 수동 백업으로 기기 간 이전할 수 있습니다.
 
 GitHub Pages는 main 병합 전까지 기존 페이지입니다. 추가 사용자 요청 없이 main을 병합하거나 배포하지 않습니다. 사용자 ROM은 배포/커밋하지 않습니다.
+
+2026-10-08 추가: app/clock.js iframe Date 오프셋, sync.js 불변 스냅샷, drive-store.js appDataFolder POST/GET, storage.js IDB v2 outbox와 조건부 ACK. Google 인증 토큰은 메모리에만 저장. 계정 permissionId를 확인하여 계정 변경 전송 차단. 실제 Google 인증 정보 없음으로 실서버 동기화는 미검증. 자세한 한계와 재현은 README-BROWSER.md 참고.
+
+최종 검증: Node 16/16, 자체 GBA 실제 mGBA RTC/Flash + IndexedDB 15/15, 기존 NES 15/15 + 실제 영상 녹화. 모바일은 뷰포트 검증이며 실기기 아님. 테스트 결과는 verification/.

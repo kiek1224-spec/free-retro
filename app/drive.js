@@ -1,6 +1,8 @@
-// Selected-file access only. Tokens stay in memory; no proxy and no uploads.
+// ROM Picker and opt-in app-data sync. Tokens remain in memory.
 let token = null,
   expires = 0,
+  granted = "",
+  cloudAccount = null,
   loading;
 function script(url) {
   return new Promise((resolve, reject) => {
@@ -47,6 +49,8 @@ export function disconnect() {
     google.accounts.oauth2.revoke(token, () => {});
   token = null;
   expires = 0;
+  granted = "";
+  cloudAccount = null;
 }
 export async function prepareDrive() {
   await ready();
@@ -62,25 +66,7 @@ export async function pickGame(config) {
       "Drive 연결 준비가 끝났습니다. 선택 버튼을 한 번 더 눌러주세요.",
     );
   }
-  if (!token || Date.now() >= expires)
-    await new Promise((resolve, reject) => {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: config.clientId,
-        scope: "https://www.googleapis.com/auth/drive.file",
-        callback: (r) => {
-          if (r.error) {
-            reject(new Error(r.error));
-            return;
-          }
-          token = r.access_token;
-          expires = Date.now() + Math.max(0, r.expires_in - 60) * 1000;
-          resolve();
-        },
-        error_callback: () =>
-          reject(new Error("Google 로그인 창이 닫혔거나 차단됐습니다.")),
-      });
-      client.requestAccessToken({ prompt: "" });
-    });
+  await authorize(config, "https://www.googleapis.com/auth/drive.file");
   const file = await new Promise((resolve, reject) => {
     const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
       .setIncludeFolders(true)
@@ -117,4 +103,79 @@ export async function pickGame(config) {
   return new File([await response.blob()], file.name, {
     type: "application/octet-stream",
   });
+}
+
+async function authorize(config, scopes) {
+  if (!validConfig(config)) throw new Error("먼저 Drive 설정을 저장하세요.");
+  if (!window.google?.accounts?.oauth2) {
+    await ready();
+    throw new Error("Google 준비가 끝났습니다. 연결 버튼을 다시 누르세요.");
+  }
+  if (
+    !token ||
+    Date.now() >= expires ||
+    scopes.split(" ").some((s) => !granted.split(" ").includes(s))
+  )
+    await new Promise((resolve, reject) => {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: config.clientId,
+        scope: scopes,
+        callback: (r) => {
+          if (r.error) {
+            reject(new Error(r.error));
+            return;
+          }
+          cloudAccount = null;
+          granted = r.scope || "";
+          token = r.access_token;
+          expires = Date.now() + Math.max(0, r.expires_in - 60) * 1000;
+          resolve();
+        },
+        error_callback: () =>
+          reject(new Error("Google 로그인 창이 닫혔거나 차단됐습니다.")),
+      });
+      client.requestAccessToken({ prompt: "" });
+    });
+}
+export async function connectCloud(config, expectedAccount) {
+  cloudAccount = null;
+  await authorize(
+    config,
+    "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.appdata",
+  );
+  if (
+    !granted
+      .split(" ")
+      .includes("https://www.googleapis.com/auth/drive.appdata")
+  )
+    throw new Error(
+      "세이브 동기화 권한이 승인되지 않았습니다. 로컬 저장은 계속 사용할 수 있습니다.",
+    );
+  const response = await fetch(
+    "https://www.googleapis.com/drive/v3/about?fields=user(permissionId)",
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!response.ok)
+    throw new Error("연결한 Google 계정을 확인하지 못했습니다.");
+  const id = (await response.json()).user?.permissionId;
+  if (!id || (expectedAccount && id !== expectedAccount))
+    throw new Error(
+      "이 브라우저에 연결했던 Google 계정으로 로그인하세요. 다른 계정에는 저장을 전송하지 않습니다.",
+    );
+  cloudAccount = id;
+  return id;
+}
+export function cloudToken() {
+  if (
+    !cloudAccount ||
+    !token ||
+    Date.now() >= expires ||
+    !granted
+      .split(" ")
+      .includes("https://www.googleapis.com/auth/drive.appdata")
+  )
+    throw new Error(
+      "자동 동기화가 대기 중입니다. Drive 세이브 연결 버튼으로 로그인하세요.",
+    );
+  return token;
 }

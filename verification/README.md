@@ -13,3 +13,12 @@
 Google OAuth/Pick­er 실제 흐름은 사용자의 프로젝트 설정이 없어 미검증입니다. SRM 가져오기/내보내기는 연결 코드를 확인했으나 이 테스트 ROM에 배터리 RAM이 없어 실제 SRAM 게임으로 검증하지 않았습니다. 치트·코어 옵션·셰이더는 기존 엔진 메뉴/API를 연결했으며, 개별 게임별 효과를 검사하지 않았습니다.
 
 기존 코어와 원래 로컬 작업 폴더는 수정하지 않았습니다. 원래 main의 index.html은 legacy.html과 바이트가 같습니다. 게임 ROM·사용자 저장·OAuth 값은 커밋에 포함하지 않습니다. JPG 화면 증거는 로컬 산출물이며 Git에서 제외합니다.
+
+## RTC / Drive 자동 동기화 확장
+
+Node 모델/클럭/동기화/OAuth 계정 테스트 16/16 통과. 손상·다른 ROM 거절, 두 기기 동시 저장 보존, 업로드 응답 유실 재시도, 오프라인/만료 대기열, 늦은 ACK와 새 자동 저장 경합, Drive appDataFolder 페이징/multipart 생성, 다른 ROM 실행 중 동기화 순서와 계정/권한 거절을 확인했습니다. 실제 OAuth/Drive 서버와 연결한 결과는 아닙니다.
+
+직접 만든 GBA RTC/Flash ROM을 실제 번들 mGBA에서 실행하여 15/15 검사 통과. 게임의 GPIO RTC 날짜/시각, 시간 흐름, 실제 시계 불변, RTC 초기화, 저장 복원 뒤 RTC, 실제 Flash 저장 바이트, 직렬화 해시 보존, IndexedDB outbox/수신/조건부 ACK를 확인했습니다. 검증은 `rtc-cloud-runtime.txt`에 있습니다. 초기 테스트 ROM의 비트 순서/클록 신호를 수정한 후 최종 소스로 재검증했습니다. 제품 코어는 수정하지 않았습니다.
+
+확장 후 NES 회귀 15개 및 실제 영상 녹화 1개 모두 통과했습니다 (`runtime.txt`). RTC 테스트 원본 C와 빌드 스크립트는 tests/에 있으며 생성 ROM은 Git에서 제외합니다. 실제 휴대폰·상용 RTC 게임·Google 실서버는 미검증입니다.
+확장 설정 화면의 390×844 뷰포트: 콘텐츠 폭과 scrollWidth 모두 375px, 설정 대화상자 337px로 가로 넘침 없음. 화면 증거: cloud-settings.png, cloud-mobile.png, rtc-cloud.png (로컬 전용).

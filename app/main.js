@@ -7,7 +7,17 @@ import {
   hotkeyAction,
 } from "./model.js";
 import * as store from "./storage.js";
-import { pickGame, validConfig, prepareDrive, disconnect } from "./drive.js";
+import {
+  pickGame,
+  validConfig,
+  prepareDrive,
+  disconnect,
+  connectCloud,
+  cloudToken,
+} from "./drive.js";
+import { createSynchronizer } from "./sync.js";
+import { driveStore } from "./drive-store.js";
+import { validOffset } from "./clock.js";
 const $ = (id) => document.getElementById(id);
 let games = [],
   current = null,
@@ -25,6 +35,79 @@ let games = [],
   exiting = false,
   importing = false;
 const pending = new Map();
+let cloudEnabled = false,
+  deviceId,
+  cloudTimer,
+  boundCloudAccount;
+function cloudStatus(message) {
+  $("cloud-status").textContent = $("cloud-settings-status").textContent =
+    message;
+}
+const synchronizer = createSynchronizer({
+  store,
+  remote: driveStore({
+    getToken: () => {
+      if (!cloudEnabled) throw new Error("자동 동기화가 꺼져 있습니다.");
+      return cloudToken();
+    },
+  }),
+  onStatus: cloudStatus,
+});
+async function syncNow(rom) {
+  if (!cloudEnabled || !navigator.onLine) {
+    cloudStatus(
+      cloudEnabled
+        ? "오프라인 · 로컬 저장 후 동기화 대기"
+        : "Drive 세이브 동기화 꺼짐",
+    );
+    return;
+  }
+  const result = await synchronizer.run(rom);
+  for (const state of result.downloaded) {
+    const game = await store.getGame(state.romId);
+    if (!game || game.core !== state.core) continue;
+    if (!game.profiles.includes(state.profile)) {
+      game.profiles.push(state.profile);
+      await store.putGame(game);
+    }
+    if (current?.id === game.id) {
+      current.profiles = game.profiles;
+      renderProfiles();
+      await renderStates();
+    }
+  }
+  if (result.downloaded.length && started)
+    toast(
+      "다른 기기의 저장을 추가했습니다. 현재 플레이는 유지됩니다. 원하는 저장을 직접 불러오세요.",
+    );
+  return result;
+}
+function backgroundSync(rom) {
+  syncNow(rom).catch((error) => cloudStatus(error.message));
+}
+function renderRTC() {
+  const offset = current?.rtc?.[profile] || 0;
+  const date = new Date(Date.now() + offset);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  $("rtc-time").value = local.toISOString().slice(0, 16);
+  $("rtc-status").textContent = offset
+    ? `게임 시간 ${date.toLocaleString("ko-KR")} · 계속 진행`
+    : "실제 시간 사용";
+}
+async function restoreState(state) {
+  if (Number.isFinite(state.rtcOffset)) {
+    current.rtc ||= {};
+    current.rtc[profile] = validOffset(state.rtcOffset);
+    await store.putGame(current);
+  }
+  await rpc("restore", {
+    blob: state.data,
+    battery: state.battery,
+    rtcOffset: current.rtc?.[profile] || 0,
+  });
+  $("pause-game").textContent = "일시정지";
+  renderRTC();
+}
 function toast(text) {
   $("toast").textContent = text;
   $("toast").classList.add("show");
@@ -213,8 +296,13 @@ function editGame(id) {
 }
 async function launch(id) {
   if (current) throw new Error("현재 게임을 먼저 종료하세요.");
+  if (cloudEnabled)
+    await syncNow(id).catch((error) => cloudStatus(error.message));
   current = await store.getGame(id);
   profile = current.lastProfile || "기본";
+  const latestRTC = (await store.statesFor(id, profile))[0]?.rtcOffset;
+  current.rtc ||= {};
+  if (Number.isFinite(latestRTC)) current.rtc[profile] = validOffset(latestRTC);
   started = false;
   stateSupported = false;
   exiting = false;
@@ -233,6 +321,7 @@ async function launch(id) {
   $("save-key").value = keys.save;
   $("pause-key").value = keys.pause;
   renderProfiles();
+  renderRTC();
   renderMacros();
   await renderStates();
   $("player").src = "app/player.html";
@@ -261,14 +350,14 @@ async function renderStates() {
   for (const s of states) {
     const row = document.createElement("div");
     row.className = "state";
+    row.dataset.stateId = s.id;
     const label = document.createElement("span");
     label.textContent = `${s.label} · ${new Date(s.created).toLocaleString("ko-KR")}`;
     row.append(
       label,
       button("불러오기", async () => {
         await save("불러오기 전 백업");
-        await rpc("restore", { blob: s.data });
-        $("pause-game").textContent = "일시정지";
+        await restoreState(s);
         toast("저장한 상태를 불러왔습니다.");
       }),
       button("파일", () =>
@@ -290,6 +379,12 @@ async function save(label = "수동 저장", blob = null) {
     saveProfile = profile;
   saving = (async () => {
     const data = blob || (await rpc("snapshot"));
+    let battery = null;
+    try {
+      battery = await rpc("battery");
+    } catch {
+      /* A ROM may have no battery RAM. */
+    }
     await store.putState({
       id:
         label === "자동 저장"
@@ -301,8 +396,13 @@ async function save(label = "수동 저장", blob = null) {
       created: Date.now(),
       label,
       data,
+      battery,
+      rtcOffset: game.rtc?.[saveProfile] || 0,
+      device: deviceId,
+      syncId: crypto.randomUUID(),
     });
     if (current?.id === game.id) await renderStates();
+    if (cloudEnabled) backgroundSync(game.id);
   })();
   try {
     await saving;
@@ -408,6 +508,7 @@ window.addEventListener(
           core: current.core,
           gameId: parseInt(current.id.slice(0, 8), 16),
           keys,
+          rtcOffset: current.rtc?.[profile] || 0,
         },
         location.origin,
       );
@@ -425,7 +526,7 @@ window.addEventListener(
       const latest = data.supportsStates
         ? (await store.statesFor(current.id, profile))[0]
         : null;
-      if (latest) await rpc("restore", { blob: latest.data });
+      if (latest) await restoreState(latest);
       renderMacros();
       autoTimer = setInterval(() => {
         if (started && !document.hidden && !saving && data.supportsStates)
@@ -472,7 +573,11 @@ async function backup() {
     core: current.core,
     profiles: current.profiles,
     states: await Promise.all(
-      states.map(async (s) => ({ ...s, data: await encode(s.data) })),
+      states.map(async (s) => ({
+        ...s,
+        data: await encode(s.data),
+        battery: s.battery?.size ? await encode(s.battery) : null,
+      })),
     ),
   };
   download(
@@ -516,6 +621,7 @@ $("settings-open").onclick = () => {
   $("drive-client").value = driveConfig.clientId || "";
   $("drive-key").value = driveConfig.apiKey || "";
   $("drive-project").value = driveConfig.project || "";
+  $("cloud-enabled").checked = cloudEnabled;
   $("settings").showModal();
 };
 $("save-drive").onclick = handle(async () => {
@@ -535,6 +641,7 @@ $("save-drive").onclick = handle(async () => {
 });
 $("disconnect-drive").onclick = () => {
   disconnect();
+  cloudStatus("Drive 연결 해제 · 재연결할 때까지 로컬 저장");
   toast("이 브라우저의 Drive 연결을 해제했습니다.");
 };
 $("add-drive").onclick = handle(async () => {
@@ -549,6 +656,44 @@ $("save-state").onclick = handle(() => save());
 $("exit-game").onclick = handle(exit);
 $("pause-game").onclick = handle(pause);
 $("touch-pad").onclick = handle(() => rpc("touch"));
+async function setRTC(offset) {
+  validOffset(offset);
+  if (stateSupported) await save("RTC 변경 전 백업");
+  current.rtc ||= {};
+  current.rtc[profile] = offset;
+  await store.putGame(current);
+  await rpc("clock", { offset });
+  renderRTC();
+  if (stateSupported) await save("RTC 시간 변경");
+  toast(
+    "게임 시간을 변경했습니다. 시간을 시작할 때만 읽는 게임은 코어의 Restart로 재시작하세요.",
+  );
+}
+$("rtc-apply").onclick = handle(() =>
+  setRTC(validOffset(new Date($("rtc-time").value).getTime() - Date.now())),
+);
+$("rtc-reset").onclick = handle(() => setRTC(0));
+$("cloud-enabled").onchange = handle(async (event) => {
+  cloudEnabled = event.target.checked;
+  await store.setSetting("cloud-enabled", cloudEnabled);
+  cloudStatus(
+    cloudEnabled
+      ? "Drive 세이브 연결로 로그인하세요."
+      : "Drive 세이브 동기화 꺼짐",
+  );
+  if (cloudEnabled) await store.enqueueExisting();
+});
+$("cloud-connect").onclick = handle(async () => {
+  const account = await connectCloud(driveConfig, boundCloudAccount);
+  await store.setSetting("cloud-account", account);
+  boundCloudAccount = account;
+  cloudEnabled = true;
+  $("cloud-enabled").checked = true;
+  await store.setSetting("cloud-enabled", true);
+  await store.enqueueExisting();
+  await syncNow();
+});
+$("cloud-now").onclick = handle(() => syncNow());
 $("speed").onchange = handle((e) => rpc("speed", { value: e.target.value }));
 $("shader").onchange = handle((e) => rpc("shader", { value: e.target.value }));
 $("fullscreen").onclick = handle(async () => {
@@ -612,6 +757,9 @@ $("backup-input").onchange = handle(async (e) => {
     romId: current.id,
     core: current.core,
     data: decode(s.data),
+    battery: s.battery ? decode(s.battery) : null,
+    cloudSaved: false,
+    syncId: crypto.randomUUID(),
   }));
   await store.importStates(states);
   current.profiles = [
@@ -705,6 +853,19 @@ window.addEventListener("beforeunload", (e) => {
 });
 try {
   await store.openStore();
+  deviceId = (await store.setting("device-id")) || crypto.randomUUID();
+  await store.setSetting("device-id", deviceId);
+  cloudEnabled = !!(await store.setting("cloud-enabled"));
+  boundCloudAccount = await store.setting("cloud-account");
+  cloudStatus(
+    cloudEnabled
+      ? "Drive 로그인 대기 · 로컬 저장 가능"
+      : "Drive 세이브 동기화 꺼짐",
+  );
+  cloudTimer = setInterval(() => {
+    if (cloudEnabled && !document.hidden) backgroundSync();
+  }, 30000);
+  window.addEventListener("online", () => backgroundSync());
   keys = (await store.setting("hotkeys")) || keys;
   driveConfig = (await store.setting("drive")) || {};
   await refresh();

@@ -521,3 +521,7 @@ body.dragover main {
     flex: initial !important;
   }
 }
+#states {
+  max-height: 280px;
+  overflow-y: auto;
+}

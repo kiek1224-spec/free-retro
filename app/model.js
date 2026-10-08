@@ -1,3 +1,4 @@
+import { validOffset } from "./clock.js";
 export const SYSTEMS = {
   nes: "NES",
   snes: "SNES",
@@ -78,7 +79,7 @@ export function validateBackup(value, game) {
     throw new Error(
       "이 게임과 맞지 않는 백업입니다. 같은 ROM 파일을 선택하세요.",
     );
-  for (const s of value.states)
+  for (const s of value.states) {
     if (
       !s ||
       typeof s.profile !== "string" ||
@@ -93,6 +94,15 @@ export function validateBackup(value, game) {
       s.data.length % 4
     )
       throw new Error("저장 데이터 형식이 올바르지 않습니다.");
+    if (s.rtcOffset !== undefined) validOffset(s.rtcOffset);
+    if (
+      s.battery &&
+      (typeof s.battery !== "string" ||
+        !/^[A-Za-z0-9+/]+={0,2}$/.test(s.battery) ||
+        s.battery.length % 4)
+    )
+      throw new Error("게임 내 저장 형식이 올바르지 않습니다.");
+  }
   return value;
 }
 export function hotkeyAction(event, keys) {

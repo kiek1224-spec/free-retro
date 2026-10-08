@@ -1,0 +1,268 @@
+<!doctype html><meta charset="utf-8" /><title>
+  Free Retro RTC and Cloud QA
+</title>
+<style>
+  body {
+    margin: 0;
+    background: #10171d;
+    color: white;
+    font: 13px monospace;
+  }
+  iframe {
+    height: 100vh;
+    width: 100%;
+    border: 0;
+  }
+  pre {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    background: #10171ded;
+    max-height: 200px;
+    overflow: auto;
+    max-width: 45%;
+    padding: 10px;
+    white-space: pre-wrap;
+  }
+</style>
+<pre id="report">
+Preparing GBA RTC cartridge… Click START GAME when it appears.</pre
+>
+<iframe id="app" src="../"></iframe>
+<script type="module">
+  import * as store from "../app/storage.js";
+  import { romId } from "../app/model.js";
+  import { packState, unpackState, createSynchronizer } from "../app/sync.js";
+  const frame = document.querySelector("#app"),
+    report = document.querySelector("#report"),
+    logs = [];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function wait(fn) {
+    for (let i = 0; i < 1800; i++) {
+      if (await fn()) return;
+      await sleep(100);
+    }
+    throw new Error("Timed out");
+  }
+  const check = (name, value) => {
+    if (!value) throw new Error(name);
+    logs.push("PASS " + name);
+    report.textContent = logs.join("\n");
+  };
+  try {
+    const blob = await (
+        await fetch("rtc-fixture.gba", { cache: "no-store" })
+      ).blob(),
+      id = await romId(blob);
+    const title = "Original RTC Test " + id.slice(0, 8);
+    const existing = await store.getGame(id);
+    if (existing) await store.putGame({ ...existing, title });
+    if (!existing)
+      await store.putGame({
+        id,
+        title,
+        filename: "rtc-fixture.gba",
+        core: "gba",
+        blob,
+        size: blob.size,
+        source: "local",
+        folder: "QA",
+        favorite: true,
+        added: Date.now(),
+        lastPlayed: 0,
+        profiles: ["기본"],
+        macros: [],
+        rtc: { 기본: 0 },
+      });
+    await wait(() => frame.contentDocument?.querySelector("#games"));
+    frame.contentWindow.location.reload();
+    await wait(() =>
+      [...frame.contentDocument.querySelectorAll(".game-card")].some((c) =>
+        c.textContent.includes(title),
+      ),
+    );
+    const doc = frame.contentDocument;
+    [...doc.querySelectorAll(".game-card")]
+      .find((c) => c.textContent.includes(title))
+      .querySelector(".primary")
+      .click();
+    await wait(
+      () =>
+        doc
+          .querySelector("#player")
+          ?.contentWindow?.EJS_emulator?.gameManager?.supportsStates() &&
+        !doc.querySelector("#save-state").disabled,
+    );
+    const player = doc.querySelector("#player").contentWindow,
+      e = player.EJS_emulator,
+      m = e.gameManager;
+    function probe() {
+      const state = new Uint8Array(m.getState());
+      for (let i = 0; i < state.length - 12; i++)
+        if (
+          state[i] === 70 &&
+          state[i + 1] === 82 &&
+          state[i + 2] === 84 &&
+          state[i + 3] === 67
+        )
+          return Array.from(state.slice(i + 4, i + 11));
+      return null;
+    }
+    await wait(() => probe()?.[1] > 0);
+    const realBefore = Date.now(),
+      target = new Date(realBefore + 3 * 86400000 + 2 * 3600000),
+      asLocal = new Date(target.getTime() - target.getTimezoneOffset() * 60000);
+    doc.querySelector("#rtc-time").value = asLocal.toISOString().slice(0, 16);
+    doc.querySelector("#rtc-apply").click();
+    await wait(
+      async () =>
+        Math.abs((await store.getGame(id)).rtc?.["기본"] || 0) > 86400000,
+    );
+    await sleep(1000);
+    const rtc = probe(),
+      bcd = (v) => (v >> 4) * 10 + (v & 15);
+    logs.push("GBA RTC BCD " + JSON.stringify(rtc));
+    check(
+      "actual mGBA cartridge reads shifted RTC date",
+      bcd(rtc[0]) === target.getFullYear() % 100 &&
+        bcd(rtc[1]) === target.getMonth() + 1 &&
+        bcd(rtc[2]) === target.getDate(),
+    );
+    check(
+      "actual mGBA cartridge reads shifted RTC hour and minute",
+      bcd(rtc[4]) === target.getHours() && bcd(rtc[5]) === target.getMinutes(),
+    );
+    check(
+      "parent browser real clock unchanged",
+      Math.abs(Date.now() - realBefore) < 20000 &&
+        player.Date.now() - Date.now() > 86400000,
+    );
+    const beforeSeconds = bcd(rtc[6]);
+    await sleep(1500);
+    check("RTC continues ticking", bcd(probe()[6]) !== beforeSeconds);
+    await wait(async () =>
+      (await store.statesFor(id, "기본")).some(
+        (s) => s.label === "RTC 시간 변경",
+      ),
+    );
+    const saved = (await store.statesFor(id, "기본")).find(
+      (s) => s.label === "RTC 시간 변경",
+    );
+    check("RTC state has actual SRAM bytes", saved.battery?.size > 0);
+    const battery = new Uint8Array(await saved.battery.arrayBuffer());
+    check(
+      "SRAM marker comes from emulated GBA cartridge",
+      battery[0] === 70 &&
+        battery[1] === 82 &&
+        battery[2] === 83 &&
+        battery[3] === 77,
+    );
+    check(
+      "atomic local save creates durable sync queue",
+      (await store.pendingStates()).some((s) => s.syncId === saved.syncId),
+    );
+    const packed = await packState(saved),
+      incoming = await unpackState(packed, id);
+    check(
+      "real core bytes and SRAM survive cloud serialization",
+      (await romId(incoming.data)) === (await romId(saved.data)) &&
+        (await romId(incoming.battery)) === (await romId(saved.battery)),
+    );
+    await store.acknowledge(saved.id, "wrong-revision");
+    check(
+      "wrong upload ACK cannot drop pending revision",
+      (await store.pendingStates()).some((s) => s.syncId === saved.syncId),
+    );
+    const conflict = {
+      ...incoming,
+      id: "cloud:" + crypto.randomUUID(),
+      syncId: crypto.randomUUID(),
+      device: "other-device",
+      created: Date.now() + 1,
+      label: "☁ Other device",
+      cloudSaved: true,
+    };
+    await store.receive(conflict);
+    check(
+      "another device save preserves local original",
+      !!(await store.statesFor(id, "기본")).find((s) => s.id === saved.id) &&
+        !!(await store.statesFor(id, "기본")).find((s) => s.id === conflict.id),
+    );
+    check(
+      "received cloud snapshot is not re-uploaded",
+      !(await store.pendingStates()).some((s) => s.syncId === conflict.syncId),
+    );
+    // Exercise real IndexedDB with a local mock remote, never a Google account.
+    const snapshot = await packState(conflict),
+      mock = {
+        async list() {
+          return [
+            {
+              id: "mock",
+              appProperties: { syncId: snapshot.syncId, romId: id },
+            },
+          ];
+        },
+        async create() {},
+        async read() {
+          return snapshot;
+        },
+      };
+    const isolated = {
+      pendingStates: async () => [],
+      acknowledge: store.acknowledge,
+      hasSnapshot: store.hasSnapshot,
+      receive: store.receive,
+    };
+    check(
+      "duplicate cloud download is skipped",
+      (await createSynchronizer({ store: isolated, remote: mock }).run(id))
+        .downloaded.length === 0,
+    );
+    const resetStart = Date.now();
+    doc.querySelector("#rtc-reset").click();
+    await wait(async () => (await store.getGame(id)).rtc["기본"] === 0);
+    await sleep(700);
+    check(
+      "RTC reset returns game to actual date",
+      bcd(probe()[2]) === new Date().getDate() &&
+        Math.abs(player.Date.now() - Date.now()) < 100,
+    );
+    await wait(() =>
+      [...doc.querySelectorAll(".state")].some(
+        (row) => row.dataset.stateId === saved.id,
+      ),
+    );
+    [...doc.querySelectorAll(".state")]
+      .find((row) => row.dataset.stateId === saved.id)
+      .querySelector("button")
+      .click();
+    await wait(async () => (await store.getGame(id)).rtc["기본"] > 86400000);
+    await sleep(900);
+    check(
+      "restoring a save restores actual cartridge RTC",
+      bcd(probe()[2]) === target.getDate(),
+    );
+    const raceOld = {
+      ...saved,
+      id: "qa-rtc-auto:" + id,
+      syncId: crypto.randomUUID(),
+    };
+    await store.putState(raceOld);
+    const raceNew = { ...raceOld, syncId: crypto.randomUUID() };
+    await store.putState(raceNew);
+    await store.acknowledge(raceOld.id, raceOld.syncId);
+    check(
+      "real IndexedDB ACK preserves a newer automatic revision",
+      (await store.pendingStates()).some(
+        (s) => s.id === raceNew.id && s.syncId === raceNew.syncId,
+      ),
+    );
+    report.textContent =
+      logs.join("\n") + "\nALL RTC AND LOCAL CLOUD CHECKS PASSED";
+  } catch (error) {
+    report.textContent = logs.join("\n") + "\nFAIL " + error.message;
+    console.error(error);
+  }
+</script>

@@ -1,4 +1,6 @@
 import { hotkeyAction } from "./model.js";
+import { installClock } from "./clock.js";
+let gameClock;
 let started = false,
   booting = false,
   recording = false,
@@ -62,6 +64,7 @@ async function boot(data) {
     );
   };
   keys = data.keys;
+  gameClock = installClock(window, data.rtcOffset || 0);
   romUrl = URL.createObjectURL(data.rom);
   window.EJS_player = "#game";
   window.EJS_gameUrl = romUrl;
@@ -135,6 +138,14 @@ const actions = {
   restore: async (data) => {
     const m = gm();
     stopMacro();
+    if (Number.isFinite(data.rtcOffset)) gameClock.set(data.rtcOffset);
+    if (data.battery?.size) {
+      const path = m.getSaveFilePath();
+      if (path) {
+        m.FS.writeFile(path, new Uint8Array(await data.battery.arrayBuffer()));
+        m.loadSaveFiles();
+      }
+    }
     m.loadState(new Uint8Array(await data.blob.arrayBuffer()));
     // The native core processes load commands in its running main loop.
     window.EJS_emulator.play();
@@ -178,6 +189,8 @@ const actions = {
     e.toggleVirtualGamepad(e.virtualGamepad.style.display === "none");
     return true;
   },
+  clock: (data) =>
+    data.offset === undefined ? gameClock.read() : gameClock.set(data.offset),
   shader: (data) => {
     gm();
     window.EJS_emulator.changeSettingOption("shader", data.value);

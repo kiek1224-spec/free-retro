@@ -124,6 +124,9 @@
           </div>
           <details open>
             <summary>저장과 프로필</summary>
+            <p id="cloud-status" class="small" role="status">
+              Drive 세이브 동기화 꺼짐
+            </p>
             <div class="row">
               <select id="profile" aria-label="세이브 프로필"></select
               ><button id="new-profile">＋ 프로필</button>
@@ -142,6 +145,24 @@
               보관합니다.
             </p>
             <div id="states"></div>
+          </details>
+          <details>
+            <summary>게임 RTC 시간</summary>
+            <p id="rtc-status" class="small">실제 시간 사용</p>
+            <label
+              >게임에서 사용할 날짜와 시간<input
+                id="rtc-time"
+                type="datetime-local"
+            /></label>
+            <div class="row">
+              <button id="rtc-apply">시간 적용</button
+              ><button id="rtc-reset">실제 시간으로</button>
+            </div>
+            <p class="small">
+              시간은 계속 흐릅니다. 프로필별로 보관하며 기기 시간은 바꾸지
+              않습니다. RTC가 없는 게임에는 효과가 없고, 코어에 따라 게임
+              재시작이 필요합니다.
+            </p>
           </details>
           <details>
             <summary>화면과 캡처</summary>
@@ -238,8 +259,24 @@
       <hr />
       <p class="small">
         로컬 데이터는 기기·브라우저마다 별개입니다. PC와 휴대폰 사이의 저장은
-        ‘저장 전체 백업’ 파일로 옮길 수 있습니다. Drive 자동 세이브 동기화는 이
-        버전에 포함되지 않습니다.
+        ‘저장 전체 백업’ 파일로 옮길 수도 있습니다. 자동 동기화는 로그인 후 앱을
+        열어 둔 동안 동작합니다. 닫힌 브라우저에서는 실행되지 않습니다.
+      </p>
+      <label class="check"
+        ><input id="cloud-enabled" type="checkbox" /> 세이브 자동 동기화
+        사용</label
+      >
+      <p class="small">
+        같은 Google 계정과 OAuth 앱으로 연결한 휴대폰·PC에서 저장을 가져옵니다.
+        상태·게임 내 저장·RTC 설정을 앱 전용 공간에 전송하며 ROM은 업로드하지
+        않습니다. 이력은 덮어쓰거나 자동 삭제하지 않아 Drive 용량을 사용합니다.
+      </p>
+      <div class="row">
+        <button id="cloud-connect">Drive 세이브 연결</button
+        ><button id="cloud-now">지금 동기화</button>
+      </div>
+      <p id="cloud-settings-status" class="small" role="status">
+        Drive 세이브 동기화 꺼짐
       </p>
     </dialog>
     <dialog id="edit-game">

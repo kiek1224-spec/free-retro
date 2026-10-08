@@ -1,0 +1,24 @@
+✔ cloud consent validates scope and bound account; reconnect never silently switches accounts (51.1707ms)
+✔ same content has same save identity, changed ROM never shares saves (21.2344ms)
+✔ ambiguous multi-file disc and unknown inputs are rejected (0.6101ms)
+✔ smart folders combine filters without losing unplayed items (0.9731ms)
+✔ backup rejects other ROM or core before importing bytes (0.4489ms)
+✔ typing, modifier keys and repeated keys never trigger save (0.2675ms)
+✔ Drive configuration cannot accidentally contain a client secret (0.3145ms)
+✔ RTC advances, resets, and preserves Date parsing and explicit timestamps (2.7742ms)
+✔ cloud roundtrip preserves real state, SRAM and profile RTC; detects corruption (7.5991ms)
+✔ concurrent devices keep both saves and repeated sync is idempotent (3.6459ms)
+✔ lost upload response retries by remote revision without duplicating or losing queue (1.1704ms)
+✔ acknowledging old automatic save cannot remove newer revision queued during upload (1.1506ms)
+✔ offline or expired authorization never discards pending local save (0.4699ms)
+✔ Drive protocol uses private appdata, pagination and immutable multipart writes (38.0815ms)
+✔ corrupt remote record is held aside; unavailable transport retries (2.0664ms)
+✔ launching a different ROM while syncing waits for its own download (4.1701ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 245.4354
