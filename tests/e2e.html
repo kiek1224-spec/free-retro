@@ -1,0 +1,336 @@
+<!doctype html>
+<html>
+  <meta charset="utf-8" /><title>Free Retro Runtime QA</title
+  ><style>
+    body {
+      margin: 0;
+      background: #10171d;
+      color: white;
+      font: 14px monospace;
+    }
+    pre {
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      z-index: 50;
+      max-height: 220px;
+      overflow: auto;
+      background: #10171de8;
+      max-width: 45%;
+      padding: 12px;
+      white-space: pre-wrap;
+    }
+    iframe {
+      width: 100%;
+      height: 100vh;
+      border: 0;
+    }
+  </style>
+  <pre id="report">Running original-ROM checks…</pre>
+  <button
+    id="video-test"
+    style="position: fixed; right: 12px; top: 12px; z-index: 60"
+  >
+    영상 녹화 검사
+  </button>
+  <iframe id="app" src="../"></iframe>
+  <script type="module">
+    import * as store from "../app/storage.js";
+    import { romId, validateBackup } from "../app/model.js";
+    const report = document.querySelector("#report"),
+      frame = document.querySelector("#app"),
+      logs = [];
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const wait = async (fn) => {
+      for (let i = 0; i < 1200; i++) {
+        if (await fn()) return;
+        await sleep(100);
+      }
+      throw new Error("Timed out");
+    };
+    const check = (name, value) => {
+      if (!value) throw new Error(name);
+      logs.push("PASS " + name);
+      report.textContent = logs.join("\n");
+    };
+    document.querySelector("#video-test").onclick = async () => {
+      try {
+        const e =
+          frame.contentDocument.querySelector("#player").contentWindow
+            .EJS_emulator;
+        const recorder = e.screenRecord(),
+          chunks = [];
+        recorder.addEventListener("dataavailable", (event) =>
+          chunks.push(event.data),
+        );
+        const stopped = new Promise((resolve) =>
+          recorder.addEventListener("stop", resolve, { once: true }),
+        );
+        await sleep(1000);
+        recorder.stop();
+        await stopped;
+        check(
+          "real MediaRecorder produces video bytes",
+          chunks.reduce((size, blob) => size + blob.size, 0) > 1000,
+        );
+      } catch (error) {
+        report.textContent += "\nFAIL video " + error.message;
+      }
+    };
+    try {
+      const rom = await (await fetch("runtime-fixture.nes")).blob(),
+        id = await romId(rom);
+      if (!(await store.getGame(id)))
+        await store.putGame({
+          id,
+          title: "Free Retro Original Test",
+          filename: "runtime-fixture.nes",
+          core: "nes",
+          blob: rom,
+          size: rom.size,
+          source: "local",
+          folder: "QA",
+          favorite: true,
+          added: Date.now(),
+          lastPlayed: 0,
+          profiles: ["기본"],
+          macros: [],
+        });
+      await wait(() => frame.contentDocument?.querySelector("#games"));
+      frame.contentWindow.location.reload();
+      await sleep(300);
+      await wait(() => frame.contentDocument?.querySelector(".game-card"));
+      const doc = frame.contentDocument;
+      [...doc.querySelectorAll(".game-card")]
+        .find((c) => c.textContent.includes("Original Test"))
+        .querySelector(".primary")
+        .click();
+      await wait(
+        () =>
+          doc
+            .querySelector("#player")
+            .contentWindow?.EJS_emulator?.gameManager?.supportsStates() &&
+          !doc.querySelector("#save-state").disabled,
+      );
+      const player = doc.querySelector("#player").contentWindow,
+        e = player.EJS_emulator,
+        m = e.gameManager;
+      check("actual FCEUmm core ready", m.supportsStates());
+      check("rewind enabled before core startup", e.rewindEnabled);
+      const firstFrame = m.getFrameNum();
+      await sleep(500);
+      check("core runs frames", m.getFrameNum() > firstFrame);
+      doc.querySelector("#pause-game").click();
+      await wait(() => e.paused);
+      const original = new Uint8Array(m.getState());
+      check("nonempty serialized state", original.length > 1000);
+      const previousIds = new Set(
+        (await store.statesFor(id, "기본")).map((s) => s.id),
+      );
+      doc.querySelector("#save-state").click();
+      await wait(async () =>
+        (await store.statesFor(id, "기본")).some(
+          (s) => s.label === "수동 저장" && !previousIds.has(s.id),
+        ),
+      );
+      const saved = (await store.statesFor(id, "기본")).find(
+        (s) => s.label === "수동 저장" && !previousIds.has(s.id),
+      );
+      check(
+        "IndexedDB stores actual core bytes",
+        saved.data.size === original.length,
+      );
+      e.play();
+      await sleep(1000);
+      e.pause();
+      doc.querySelector("#states .state button").click();
+      await wait(() =>
+        doc.querySelector("#toast").textContent.includes("불러왔습니다"),
+      );
+      await sleep(100);
+      e.pause();
+      const restored = new Uint8Array(m.getState());
+      const ramBlock = (state) => {
+        for (let i = 0; i < state.length - 2056; i++)
+          if (
+            state[i] === 82 &&
+            state[i + 1] === 65 &&
+            state[i + 2] === 77 &&
+            state[i + 3] === 0 &&
+            state[i + 4] === 0 &&
+            state[i + 5] === 8
+          )
+            return state.slice(i + 8, i + 2056);
+        throw new Error("RAM block not found");
+      };
+      logs.push(
+        "RESTORE " +
+          JSON.stringify({
+            original: ramBlock(original)[0],
+            restored: ramBlock(restored)[0],
+            diff: [...original.keys()]
+              .filter((i) => original[i] !== restored[i])
+              .slice(0, 20),
+          }),
+      );
+      check(
+        "restore earlier RAM and resume execution",
+        (ramBlock(restored)[0] - ramBlock(original)[0] + 256) % 256 < 20,
+      );
+      e.play();
+      logs.push(
+        "CANVAS " + JSON.stringify(e.canvas.getBoundingClientRect().toJSON()),
+      );
+      report.textContent = logs.join("\n");
+      const png = await Promise.race([
+        new Promise((resolve) =>
+          player.requestAnimationFrame(() =>
+            e.screenshot(resolve, "canvas", "png", 1),
+          ),
+        ),
+        sleep(5000).then(() => {
+          throw new Error("screenshot timeout");
+        }),
+      ]);
+      const pixels = new Uint8Array(await png.arrayBuffer());
+      check(
+        "PNG screenshot from actual core",
+        pixels[0] === 137 && pixels[1] === 80 && pixels.length > 100,
+      );
+      const image = await createImageBitmap(png),
+        canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image, 0, 0);
+      const rgba = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      check(
+        "test scene has visible nonblack pixels",
+        rgba.some((v, i) => i % 4 !== 3 && v > 20),
+      );
+      doc.querySelector("#speed").value = "8";
+      doc
+        .querySelector("#speed")
+        .dispatchEvent(new Event("change", { bubbles: true }));
+      await sleep(100);
+      check("8x fast forward enabled", e.isFastForward === true);
+      doc.querySelector("#speed").value = "0.5";
+      doc
+        .querySelector("#speed")
+        .dispatchEvent(new Event("change", { bubbles: true }));
+      await sleep(100);
+      check(
+        "slow motion disables fast forward",
+        e.isSlowMotion === true && e.isFastForward === false,
+      );
+      doc.querySelector("#speed").value = "1";
+      doc
+        .querySelector("#speed")
+        .dispatchEvent(new Event("change", { bubbles: true }));
+      await sleep(100);
+      const ramCounter = () => {
+        const state = new Uint8Array(m.getState());
+        for (let i = 0; i < state.length - 9; i++)
+          if (
+            state[i] === 82 &&
+            state[i + 1] === 65 &&
+            state[i + 2] === 77 &&
+            state[i + 3] === 0 &&
+            state[i + 4] === 0 &&
+            state[i + 5] === 8
+          )
+            return state[i + 8];
+        throw new Error("RAM block not found");
+      };
+      await sleep(2000);
+      const beforeRewind = ramCounter();
+      m.simulateInput(0, 28, 1);
+      await sleep(250);
+      m.simulateInput(0, 28, 0);
+      const afterRewind = ramCounter();
+      logs.push(
+        "REWIND " +
+          JSON.stringify({
+            beforeRewind,
+            afterRewind,
+            paused: e.paused,
+            frame: m.getFrameNum(),
+          }),
+      );
+      check(
+        "rewind restores earlier emulated RAM",
+        (afterRewind - beforeRewind + 256) % 256 > 128,
+      );
+      const macroName = "QA A button " + Date.now();
+      doc.querySelector("#record-macro").click();
+      await sleep(150);
+      m.simulateInput(0, 8, 1);
+      await sleep(80);
+      m.simulateInput(0, 8, 0);
+      doc.querySelector("#record-macro").click();
+      await wait(() => doc.querySelector("#name-dialog").open);
+      doc.querySelector("#name-value").value = macroName;
+      doc
+        .querySelector("#name-form")
+        .dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        );
+      await wait(async () =>
+        (await store.getGame(id)).macros.some((m) => m.name === macroName),
+      );
+      const game = await store.getGame(id);
+      const macro = game.macros.find((m) => m.name === macroName);
+      check(
+        "macro persists real press and release",
+        macro.events.some((v) => v.index === 8 && v.value === 1) &&
+          macro.events.some((v) => v.index === 8 && v.value === 0),
+      );
+      const nativeInput = m.functions.simulateInput,
+        replayed = [];
+      m.functions.simulateInput = (p, i, v) => {
+        replayed.push([p, i, v]);
+        nativeInput(p, i, v);
+      };
+      doc.querySelector("#macros").value = String(
+        game.macros.findIndex((m) => m.name === macroName),
+      );
+      doc.querySelector("#play-macro").click();
+      await sleep(macro.duration + 200);
+      m.functions.simulateInput = nativeInput;
+      check(
+        "macro replays native button press and release",
+        replayed.some((v) => v[1] === 8 && v[2] === 1) &&
+          replayed.some((v) => v[1] === 8 && v[2] === 0),
+      );
+      await store.putState({
+        ...saved,
+        id: "qa-profile-isolation-" + id,
+        profile: "QA second",
+      });
+      check(
+        "profiles do not mix",
+        !(await store.statesFor(id, "기본")).some(
+          (s) => s.profile === "QA second",
+        ),
+      );
+      const wrong = {
+        format: "free-retro-backup",
+        version: 1,
+        romId: "wrong-rom",
+        core: "nes",
+        states: [],
+      };
+      let rejected = false;
+      try {
+        validateBackup(wrong, { id, core: "nes" });
+      } catch {
+        rejected = true;
+      }
+      check("backup for another ROM rejected", rejected);
+      report.textContent = logs.join("\n") + "\nALL RUNTIME CHECKS PASSED";
+    } catch (error) {
+      report.textContent = logs.join("\n") + "\nFAIL " + error.message;
+      console.error(error);
+    }
+  </script>
+</html>
