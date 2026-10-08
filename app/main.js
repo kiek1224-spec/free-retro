@@ -19,6 +19,8 @@ import { createSynchronizer } from "./sync.js";
 import { driveStore } from "./drive-store.js";
 import { validOffset } from "./clock.js";
 const $ = (id) => document.getElementById(id);
+let selectedSystem = "",
+  featuredId;
 let games = [],
   current = null,
   profile = "기본",
@@ -197,9 +199,47 @@ function render() {
     search: $("search").value,
     view: $("view-filter").value,
     folder: $("folder-filter").value,
-  });
+  }).filter((g) => !selectedSystem || g.core === selectedSystem);
   $("games").replaceChildren();
   $("game-count").textContent = games.length;
+  $("nav-count").textContent = $("hero-game-count").textContent = games.length;
+  const systems = [...new Set(games.map(g => g.core))];
+  $("hero-system-count").textContent = systems.length;
+  $("system-tabs").replaceChildren();
+  for (const core of ["", ...systems]) {
+    const tab = button(
+      core ? SYSTEMS[core] || core.toUpperCase() : "모든 게임기",
+      () => {
+        const keepFocus = document.activeElement === tab;
+        selectedSystem = core;
+        render();
+        if (keepFocus)
+          [...$("system-tabs").children]
+            .find((el) => el.dataset.core === core)
+            ?.focus({ preventScroll: true });
+      },
+      "system-tab",
+    );
+    tab.dataset.core = core;
+    tab.setAttribute("aria-pressed", String(selectedSystem === core));
+    if (selectedSystem === core) tab.classList.add("active");
+    $("system-tabs").append(tab);
+  }
+  for (const nav of document.querySelectorAll("[data-view]")) {
+    const active = nav.dataset.view === $("view-filter").value;
+    nav.classList.toggle("active", active);
+    nav.setAttribute("aria-pressed", String(active));
+  }
+  const featured = [...games]
+    .filter((g) => g.lastPlayed)
+    .sort((a, b) => b.lastPlayed - a.lastPlayed)[0];
+  $("continue-panel").hidden = !featured;
+  featuredId = featured?.id;
+  if (featured) {
+    $("continue-title").textContent = featured.title;
+    $("continue-meta").textContent = `${SYSTEMS[featured.core] || featured.core} · ${new Date(featured.lastPlayed).toLocaleDateString("ko-KR")} 마지막 플레이`;
+  }
+
   $("empty").hidden = !!filtered.length;
   $("empty").querySelector("h3").textContent = games.length
     ? "조건에 맞는 게임이 없습니다"
@@ -209,7 +249,26 @@ function render() {
     card.className = "game-card";
     const art = document.createElement("div");
     art.className = "game-art";
-    art.textContent = SYSTEMS[g.core] || g.core;
+    card.dataset.core = g.core;
+    const cover = document.createElement("img");
+    cover.src = "app/assets/cartridge.svg";
+    cover.alt = "";
+    cover.loading = "lazy";
+    const system = document.createElement("span");
+    system.className = "art-system";
+    system.textContent = SYSTEMS[g.core] || g.core.toUpperCase();
+    const caption = document.createElement("span");
+    caption.className = "art-caption-small";
+    caption.textContent = "FREE RETRO COLLECTION";
+    art.append(system, cover, caption);
+    if (g.favorite) {
+      const star = document.createElement("span");
+      star.className = "favorite-mark";
+      star.textContent = "★";
+      star.setAttribute("aria-label", "즐겨찾기");
+      art.append(star);
+    }
+
     const title = document.createElement("h3");
     title.textContent = (g.favorite ? "★ " : "") + g.title;
     const info = document.createElement("p");
@@ -225,7 +284,10 @@ function render() {
       ),
       button("정리", () => editGame(g.id)),
     );
-    card.append(art, title, info, row);
+    const body = document.createElement("div");
+    body.className = "card-body";
+    body.append(title, info, row);
+    card.append(art, body);
     $("games").append(card);
   }
 }
@@ -874,3 +936,11 @@ try {
   toast(`브라우저 저장소를 열지 못했습니다: ${e.message}`);
   $("add-local").disabled = true;
 }
+
+for (const nav of document.querySelectorAll("[data-view]")) {
+  nav.onclick = () => {
+    $("view-filter").value = nav.dataset.view;
+    render();
+  };
+}
+$("continue-play").onclick = handle(() => featuredId && launch(featuredId));

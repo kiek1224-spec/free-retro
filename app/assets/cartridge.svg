@@ -1,0 +1,20 @@
+<?xml version="1.0" ?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 180">
+  <defs>
+    <linearGradient id="plastic" x2="1" y2="1">
+      <stop stop-color="#f0eedc"/>
+      <stop offset="1" stop-color="#aab3a1"/>
+    </linearGradient>
+  </defs>
+  <path d="M36 18h130v130l-11 14H40l-12-12V30z" fill="#3b433c" opacity=".35" transform="translate(7 8)"/>
+  <path d="M36 18h130v130l-11 14H40l-12-12V30z" fill="url(#plastic)"/>
+  <path d="M35 24h8v124h-8m119-124h8v124h-8" fill="#828f7f"/>
+  <path d="M48 32h100v76H48z" fill="#263931"/>
+  <path d="M54 38h88v64H54z" fill="#516c49"/>
+  <path d="M54 85l20-21 15 12 19-25 34 33v18H54z" fill="#91a974"/>
+  <path d="M54 94l22-13 24 17 15-12 27 14v2H54z" fill="#bdd79a"/>
+  <path d="M69 52h13v4H69m43-8h17v4h-17" fill="#dce8bb"/>
+  <circle cx="128" cy="56" r="7" fill="#edeeac"/>
+  <path d="M54 121h89m-89 8h89m-89 8h89m-89 8h89" stroke="#879680" stroke-width="3"/>
+  <path d="M75 151h49v11H75z" fill="#64735e"/>
+</svg>

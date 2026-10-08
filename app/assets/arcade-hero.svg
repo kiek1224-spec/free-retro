@@ -1,0 +1,58 @@
+<?xml version="1.0" ?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 470">
+  <defs>
+    <linearGradient id="body" x1="0" x2="1" y2="1">
+      <stop stop-color="#eeefda"/>
+      <stop offset="1" stop-color="#a5aca0"/>
+    </linearGradient>
+    <linearGradient id="screen" x2="0" y2="1">
+      <stop stop-color="#bed473"/>
+      <stop offset="1" stop-color="#719954"/>
+    </linearGradient>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#b9c8ad" stroke-opacity=".11"/>
+    </pattern>
+    <filter id="shadow">
+      <feDropShadow dx="12" dy="24" stdDeviation="14" flood-opacity=".35"/>
+    </filter>
+  </defs>
+  <path fill="url(#grid)" d="M0 0h620v470H0z"/>
+  <circle cx="315" cy="235" r="187" fill="none" stroke="#daff62" stroke-opacity=".17" stroke-dasharray="3 10"/>
+  <circle cx="315" cy="235" r="137" fill="#daff62" opacity=".025"/>
+  <g transform="translate(159 46) rotate(13 150 190)" filter="url(#shadow)">
+    <path d="M26 12h245q23 0 23 24v313q0 43-43 43H28q-20 0-20-23V37q0-25 18-25" fill="#6b7469"/>
+    <path d="M22 4h245q23 0 23 24v313q0 43-43 43H24Q4 384 4 361V29Q4 4 22 4" fill="url(#body)"/>
+    <path d="M24 30h245v196q0 17-17 17H42q-18 0-18-17z" fill="#3d4647"/>
+    <path d="M49 54h194v159H49z" fill="url(#screen)"/>
+    <path d="M49 167l42-35 24 21 43-49 38 38 47-25v96H49z" fill="#526f3d"/>
+    <path d="M49 188l61-33 36 35 36-29 61 24v28H49z" fill="#314c2f"/>
+    <path d="M67 86h22v8H67zm88-8h31v8h-31zm-7 8h48v8h-48z" fill="#d2df96"/>
+    <g fill="#273e29">
+      <path d="M122 164h8v8h-8zm8-8h16v8h-16zm-8 16h24v16h-24zm-8 16h8v8h-8zm24 0h8v8h-8z"/>
+      <path d="M184 195h8v8h-8zm8-8h16v8h-16zm-8 16h24v10h-24z"/>
+    </g>
+    <text x="151" y="43" text-anchor="middle" font-family="monospace" font-size="8" fill="#b2bca4" letter-spacing="2">FREE RETRO · POCKET</text>
+    <text x="53" y="71" font-family="monospace" font-size="8" fill="#304b2e">♥ ♥ ♥  HI 0088</text>
+    <path d="M53 268h22v-21h23v21h21v24H98v22H75v-22H53z" fill="#333b39"/>
+    <path d="M63 277h10m28 0h10m-25-22v10m0 31v10" stroke="#929a89" stroke-width="2"/>
+    <circle cx="225" cy="268" r="16" fill="#ad5441"/>
+    <circle cx="189" cy="291" r="16" fill="#cb6950"/>
+    <circle cx="225" cy="266" r="12" fill="#d17b5e"/>
+    <circle cx="189" cy="289" r="12" fill="#ed9370"/>
+    <text x="245" y="279" font-family="monospace" font-size="10" fill="#666d5d">A</text>
+    <text x="170" y="316" font-family="monospace" font-size="10" fill="#666d5d">B</text>
+    <path d="M117 333h24m9 0h24" stroke="#687265" stroke-width="7" stroke-linecap="round"/>
+    <path d="M209 328v28m10-32v28m10-32v28m10-32v28m10-32v28" stroke="#899181" stroke-width="3"/>
+    <text x="28" y="368" font-family="monospace" font-size="10" font-weight="bold" fill="#586349" letter-spacing="2">PLAY ANYWHERE.</text>
+  </g>
+  <g fill="#daff62">
+    <path d="M75 104h8V92h8v12h12v8H91v12h-8v-12H75z"/>
+    <path d="M475 318h6v-10h6v10h10v6h-10v10h-6v-10h-6z"/>
+    <rect x="485" y="81" width="9" height="9"/>
+    <rect x="119" y="352" width="7" height="7"/>
+  </g>
+  <g fill="#ff9a66">
+    <path d="M480 158h8v8h-8zm8-8h8v8h-8zm8 8h8v8h-8zm-16 8h24v8h-24zm8 8h8v8h-8z"/>
+    <rect x="83" y="269" width="5" height="5"/>
+  </g>
+</svg>
