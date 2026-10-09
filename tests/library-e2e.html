@@ -116,8 +116,8 @@
         coverB = await image("#eab685");
       if (await store.getGame(id)) throw new Error("QA fingerprint collision; rerun instead of changing an existing record.");
       const platforms = [...doc.querySelectorAll("#platform-list button")];
-      check("sidebar contains every supported platform once", platforms.length === 10 &&
-        new Set(platforms.map((button) => button.dataset.core)).size === 10 &&
+      check("sidebar contains every supported platform once", platforms.length === Object.keys(SYSTEMS).length &&
+        new Set(platforms.map((button) => button.dataset.core)).size === Object.keys(SYSTEMS).length &&
         platforms.every((button) => SYSTEMS[button.dataset.core]));
 
       const extras = [

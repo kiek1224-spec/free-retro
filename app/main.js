@@ -536,6 +536,7 @@ window.addEventListener(
           channel: "free-retro",
           type: "init",
           rom: current.blob,
+          filename: current.filename,
           title: `${current.title}-${current.id.slice(0, 16)}-${profile}`,
           core: current.core,
           gameId: parseInt(current.id.slice(0, 8), 16),

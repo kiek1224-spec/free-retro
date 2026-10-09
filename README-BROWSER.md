@@ -26,7 +26,7 @@ AI 번역·음성·오토파일럿은 포함하지 않습니다. 멀티플레이
 
 ROM과 상태 저장은 현재 브라우저의 IndexedDB에 있습니다. Drive 동기화를 연결하면 다른 기기에 같은 ROM을 추가했을 때 저장을 내려받습니다. 상태 백업 파일을 내보내고 다른 기기에 같은 ROM을 추가한 뒤 가져오세요. 브라우저 데이터 삭제/저장 공간 정리 전에 반드시 백업하세요. 슬롯은 앱에서 개수를 제한하지 않지만 기기 저장 용량의 제한은 받습니다. 게임 내 저장과 상태 저장은 서로 다른 파일입니다.
 
-NES/SNES/GB/GBC/GBA/N64/PS1/Mega Drive/Master System/Game Gear/NDS 경로를 연결했습니다. 실제 코어 검증은 자체 제작 NES ROM과 RTC/Flash 저장을 사용하는 GBA ROM으로 수행했습니다. 다른 시스템과 실제 iOS/Android 기기의 성능·호환성은 추가 확인이 필요합니다. PS1 등은 사용자 BIOS가 필요할 수 있습니다. 분리된 CUE+BIN은 단일 CHD로 준비하세요.
+총 18개 플랫폼 경로를 연결했습니다. 기존 NES/SNES/GB·GBC/GBA/N64/PS1/Mega Drive/Master System/Game Gear/NDS에 Atari 2600·7800·Jaguar, Sega 32X, Virtual Boy, PC Engine, Neo Geo Pocket·Color, WonderSwan·Color를 추가했습니다. 추가 기종의 형식과 검증 범위는 `verification/PLATFORMS.md`를 참고하세요. 모든 상용 게임의 호환성을 검증한 것은 아니며 실제 iOS/Android 기기의 성능·호환성은 추가 확인이 필요합니다. PS1 등은 사용자 BIOS가 필요할 수 있습니다. 분리된 CUE+BIN은 단일 CHD로 준비하세요.
 
 ## Google Drive 준비
 

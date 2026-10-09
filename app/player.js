@@ -69,7 +69,9 @@ async function boot(data) {
   window.EJS_player = "#game";
   window.EJS_gameUrl = romUrl;
   window.EJS_core = data.core;
-  window.EJS_gameName = data.title;
+  // Blob URLs have no extension. Some cores use the virtual filename to
+  // recognize a cartridge, so retain the imported ROM's original filename.
+  window.EJS_gameName = data.filename || data.title;
   window.EJS_gameID = data.gameId;
   window.EJS_pathtodata = "../data/";
   // A trusted Start click unlocks browser audio and keeps audio-driven cores running.

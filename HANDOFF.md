@@ -17,3 +17,7 @@ GitHub Pages는 main 병합 전까지 기존 페이지입니다. 추가 사용�
 2026-10-09 디자인: Arcade Library 차콜/라임 테마, 자체 SVG 게임기·카트리지, 실제 컬렉션/기종 필터와 최근 게임 이어하기. 검증·참고 출처는 verification/DESIGN.md. 코어·RTC·Drive 전송 로직은 변경하지 않았습니다.
 
 2026-10-09 게임함 확장: 제조사별 10개 플랫폼 사이드바/개수/필터, ROM 디렉터리 선택, 컬렉션 폴더 선택/생성, 게임별 PNG/JPEG/WebP 표지 지정/편집. Blob 이미지 정규화와 object URL 해제, 중복 ROM의 기존 개인 정보/세이브 보존, 부분 성공 재시도를 구현했습니다. Google Picker 사용 중 앱 dialog의 모달 top layer를 일시 해제하며 다운로드 30초 timeout을 추가했습니다. 실제 Google 인증은 여전히 미검증입니다. 세부 검증은 verification/LIBRARY.md. 추가 표지 편집 파일 선택은 브라우저 도구 권한 거부로 중단했고 자동 UI 검사 페이지는 실행하지 않았습니다. 기존 수동 폴더 가져오기와 표지 저장·새로고침·취소 검증은 완료했습니다.
+
+2026-10-09 플랫폼 추가: 총18개. Atari 2600/7800/Jaguar, 32X, Virtual Boy, PC Engine, NGP/Color, WonderSwan/Color를 실제 로컬 기본 코어 및 고유 확장자로 연결했습니다. PSP thread 코어는 현재구성과 맞지 않아 제외. 원본filename을 player init에 전달해 가상ROM의 확장자를 보존합니다. Node42개 통과 및 검증 범위/형식은 verification/PLATFORMS.md 참고.
+
+플랫폼 실행 확인: 자체 Atari2600 ROM을 실제 stella2014에서 실행해 8/8 통과(atari-runtime.txt). 확장자/프레임 진행/줄무늬 렌더링/화면캡처를 확인. 직접player 검사로 라이브러리IDB는 수정하지 않았습니다. 새기종 중 나머지7개는 실게임 실행 미확인. 현재 로컬서버는 Windows hidden Python process(검증시 PID4696)로127.0.0.1:8197에 실행. 사용자 브라우저 탭은 이번검증에서 새로 열었습니다.

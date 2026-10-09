@@ -10,6 +10,7 @@ export const PLATFORM_GROUPS = [
       { core: "gba", name: "Game Boy Advance", icon: "handheld" },
       { core: "n64", name: "Nintendo 64", icon: "console" },
       { core: "nds", name: "Nintendo DS", icon: "handheld" },
+      { core: "vb", name: "Virtual Boy", icon: "console" },
     ],
   },
   {
@@ -22,7 +23,28 @@ export const PLATFORM_GROUPS = [
       { core: "segaMD", name: "Mega Drive", icon: "sega" },
       { core: "segaMS", name: "Master System", icon: "sega" },
       { core: "segaGG", name: "Game Gear", icon: "handheld" },
+      { core: "sega32x", name: "Sega 32X", icon: "sega" },
     ],
+  },
+  {
+    label: "ATARI",
+    platforms: [
+      { core: "atari2600", name: "Atari 2600", icon: "console" },
+      { core: "atari7800", name: "Atari 7800", icon: "console" },
+      { core: "jaguar", name: "Atari Jaguar", icon: "console" },
+    ],
+  },
+  {
+    label: "NEC",
+    platforms: [{ core: "pce", name: "PC Engine", icon: "console" }],
+  },
+  {
+    label: "SNK",
+    platforms: [{ core: "ngp", name: "Neo Geo Pocket / Color", icon: "handheld" }],
+  },
+  {
+    label: "BANDAI",
+    platforms: [{ core: "ws", name: "WonderSwan / Color", icon: "handheld" }],
   },
 ];
 

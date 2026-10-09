@@ -10,6 +10,14 @@ export const SYSTEMS = {
   segaMS: "Master System",
   segaGG: "Game Gear",
   nds: "Nintendo DS",
+  atari2600: "Atari 2600",
+  atari7800: "Atari 7800",
+  jaguar: "Atari Jaguar",
+  sega32x: "Sega 32X",
+  vb: "Virtual Boy",
+  pce: "PC Engine",
+  ngp: "Neo Geo Pocket / Color",
+  ws: "WonderSwan / Color",
 };
 const EXTENSIONS = {
   nes: "nes",
@@ -32,6 +40,19 @@ const EXTENSIONS = {
   sms: "segaMS",
   gg: "segaGG",
   nds: "nds",
+  a26: "atari2600",
+  a78: "atari7800",
+  j64: "jaguar",
+  jag: "jaguar",
+  "32x": "sega32x",
+  vb: "vb",
+  vboy: "vb",
+  pce: "pce",
+  ngp: "ngp",
+  ngc: "ngp",
+  ws: "ws",
+  wsc: "ws",
+  pc2: "ws",
 };
 export function coreFor(name) {
   const ext = name.split(".").pop().toLowerCase();
