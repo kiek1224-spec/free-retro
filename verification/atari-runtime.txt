@@ -1,0 +1,10 @@
+PASS authored cartridge is a 4 KiB single-file ROM
+PASS bundled Atari 2600 core started as stella2014
+PASS native cartridge filename preserves the .a26 extension
+PASS real core reports native save-state support
+PASS native emulation advances frames
+PASS player screenshot RPC returns rendered image bytes
+PASS original TIA program produces a non-black frame
+PASS native Atari framebuffer contains distinct color stripes
+
+DONE 8 checks. Direct player only; library records were not changed.

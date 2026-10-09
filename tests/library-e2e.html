@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ko">
+  <meta charset="utf-8" />
+  <title>Free Retro Library UI QA</title>
+  <style>
+    body { margin: 0; background: #141719; color: #edeee7; font: 13px monospace; }
+    iframe { width: 100%; height: 100vh; border: 0; }
+    pre { position: fixed; right: 12px; bottom: 12px; z-index: 100; margin: 0;
+      max-width: 45%; max-height: 38vh; overflow: auto; padding: 16px;
+      background: #101513ef; border: 1px solid #98ba47; white-space: pre-wrap; }
+  </style>
+  <iframe id="app" src="../index.html"></iframe>
+  <pre id="results">Preparing isolated library UI checks…</pre>
+  <script type="module">
+    import * as store from "../app/storage.js";
+    import { romId, SYSTEMS } from "../app/model.js";
+
+    const frame = document.querySelector("#app"),
+      output = document.querySelector("#results"),
+      lines = [],
+      tag = crypto.randomUUID().slice(0, 8),
+      originalFolder = `QA-Library-${tag}`,
+      movedFolder = `QA-Moved-${tag}`;
+    let doc, win;
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const $ = (id) => doc.getElementById(id);
+    async function wait(predicate, label = "UI update") {
+      const end = Date.now() + 20000;
+      while (Date.now() < end) {
+        if (await predicate()) return;
+        await sleep(50);
+      }
+      throw new Error(`Timed out: ${label}`);
+    }
+    function check(name, condition) {
+      if (!condition) throw new Error(name);
+      lines.push(`PASS ${name}`);
+      output.textContent = lines.join("\n");
+    }
+    async function ready() {
+      await wait(() => {
+        doc = frame.contentDocument;
+        win = frame.contentWindow;
+        return typeof doc?.getElementById("add-local")?.onclick === "function" &&
+          doc.querySelectorAll("#platform-list button").length === Object.keys(SYSTEMS).length;
+      }, "application initialization");
+    }
+    async function reload() {
+      const loaded = new Promise((resolve) => frame.addEventListener("load", resolve, { once: true }));
+      win.location.reload();
+      await loaded;
+      await ready();
+    }
+    function selectFiles(inputId, files) {
+      const transfer = new win.DataTransfer();
+      for (const file of files) transfer.items.add(file);
+      $(inputId).files = transfer.files;
+      $(inputId).dispatchEvent(new win.Event("change", { bubbles: true }));
+    }
+    function file(bytes, name, path = "", type = "application/octet-stream") {
+      const selected = new win.File([bytes], name, { type });
+      if (path) Object.defineProperty(selected, "webkitRelativePath", { value: path });
+      return selected;
+    }
+    async function image(color) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1600; canvas.height = 2400;
+      const context = canvas.getContext("2d");
+      context.fillStyle = color; context.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "#141719"; context.font = "bold 160px sans-serif";
+      context.fillText("FREE", 160, 560); context.fillText("RETRO", 160, 800);
+      context.font = "80px sans-serif"; context.fillText(`QA ${tag}`, 160, 1160);
+      return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    }
+    function card(title) {
+      return [...doc.querySelectorAll(".game-card")]
+        .find((element) => element.querySelector("h3").textContent.includes(title));
+    }
+    async function stageDirectory(rom, extras = []) {
+      $("add-local").click();
+      selectFiles("directory-input", [rom, ...extras]);
+      await wait(() => $("import-list").children.length === 1, "one staged ROM");
+    }
+    async function chooseImportArtwork(blob) {
+      $("import-list").querySelector("button").click();
+      selectFiles("artwork-input", [file(blob, `artwork-${tag}.png`, "", "image/png")]);
+      await wait(() => !$("import-save").disabled &&
+        $("import-list").querySelector("button").textContent === "표지 변경", "artwork decoding");
+    }
+    async function commit(id) {
+      $("import-save").click();
+      await wait(async () => !$("import-game").open && !!(await store.getGame(id)), "import commit");
+    }
+    async function edit(title) {
+      card(title).querySelectorAll("button")[1].click();
+      await wait(() => $("edit-game").open, "edit dialog");
+    }
+    async function saveEdit() {
+      $("edit-save").click();
+      await wait(() => !$("edit-game").open, "edit commit");
+    }
+    async function blobHash(blob) { return romId(blob); }
+
+    try {
+      await ready();
+      const fixture = await fetch("runtime-fixture.nes", { cache: "no-store" });
+      if (!fixture.ok) throw new Error("Generate tests/runtime-fixture.nes before running this page.");
+      const bytes = new Uint8Array(await fixture.arrayBuffer());
+      if (bytes.length < 64) throw new Error("Invalid original test fixture");
+      // Only our authored QA ROM is modified. A fresh fingerprint avoids all existing records.
+      bytes.set(crypto.getRandomValues(new Uint8Array(16)), bytes.length - 16);
+      const rom = file(bytes, `Library QA ${tag}.nes`, `${originalFolder}/Nintendo/Library QA ${tag}.nes`),
+        id = await romId(rom),
+        title = `Library QA ${tag}`,
+        coverA = await image("#c7e85e"),
+        coverB = await image("#eab685");
+      if (await store.getGame(id)) throw new Error("QA fingerprint collision; rerun instead of changing an existing record.");
+      const platforms = [...doc.querySelectorAll("#platform-list button")];
+      check("sidebar contains every supported platform once", platforms.length === Object.keys(SYSTEMS).length &&
+        new Set(platforms.map((button) => button.dataset.core)).size === Object.keys(SYSTEMS).length &&
+        platforms.every((button) => SYSTEMS[button.dataset.core]));
+
+      const extras = [
+        file("QA documentation", "README.txt", `${originalFolder}/README.txt`, "text/plain"),
+        file(coverA, "cover.png", `${originalFolder}/Nintendo/cover.png`, "image/png"),
+      ];
+      await stageDirectory(rom, extras);
+      check("directory selection excludes docs and image files", $("import-list").children.length === 1 &&
+        $("import-status").textContent.includes("ROM 이외 2개 파일 제외"));
+      check("directory root is offered as a new collection folder", $("import-folder").value === "__new__" &&
+        $("import-new-folder").value === originalFolder);
+      await chooseImportArtwork(coverA);
+      check("artwork preview is prepared without saving the ROM", $("import-list").querySelector("img").src.startsWith("blob:") &&
+        !(await store.getGame(id)));
+      $("import-cancel").click();
+      await sleep(50);
+      check("cancelling an import writes no QA record", !$("import-game").open && !(await store.getGame(id)));
+
+      await stageDirectory(rom, extras);
+      await chooseImportArtwork(coverA);
+      await commit(id);
+      let saved = await store.getGame(id);
+      check("import commits the selected folder and original ROM bytes", saved.folder === originalFolder &&
+        saved.core === "nes" && saved.title === title && await romId(saved.blob) === id);
+      check("artwork is persisted as a local raster Blob", saved.artwork instanceof Blob &&
+        ["image/webp", "image/png"].includes(saved.artwork.type));
+      const decoded = await createImageBitmap(saved.artwork);
+      check("browser canvas normalization limits the longest edge to 1280", Math.max(decoded.width, decoded.height) === 1280);
+      decoded.close();
+      await wait(() => !!card(title), "new game card");
+      check("new game card shows the selected cover", card(title).querySelector(".game-art").classList.contains("custom-art") &&
+        card(title).querySelector(".game-art img").src.startsWith("blob:"));
+      doc.querySelector('#platform-list [data-core="segaGG"]').click();
+      check("sidebar platform filter hides a game from another console", !card(title));
+      doc.querySelector('#platform-list [data-core="nes"]').click();
+      check("sidebar platform filter restores the matching game", !!card(title) &&
+        doc.querySelector('#platform-list [data-core="nes"]').getAttribute("aria-pressed") === "true");
+
+      const originalArtworkHash = await blobHash(saved.artwork);
+      await edit(title);
+      $("edit-title").value = "Cancelled QA edit";
+      $("edit-folder").value = "Cancelled QA folder";
+      $("edit-favorite").checked = true;
+      $("edit-artwork-reset").click();
+      $("edit-cancel").click();
+      saved = await store.getGame(id);
+      check("cancelling metadata and cover edits keeps the original record", saved.title === title &&
+        saved.folder === originalFolder && !saved.favorite && await blobHash(saved.artwork) === originalArtworkHash);
+
+      const customTitle = `나의 QA 게임 ${tag}`;
+      await edit(title);
+      $("edit-title").value = customTitle;
+      $("edit-folder").value = `QA-Edited-${tag}`;
+      $("edit-favorite").checked = true;
+      await saveEdit();
+      saved = await store.getGame(id);
+      check("metadata edits save without dropping the artwork", saved.title === customTitle &&
+        saved.folder === `QA-Edited-${tag}` && saved.favorite && await blobHash(saved.artwork) === originalArtworkHash);
+      await edit(customTitle);
+      $("edit-artwork-reset").click();
+      await saveEdit();
+      saved = await store.getGame(id);
+      check("default cover selection removes only the custom artwork", !saved.artwork && saved.favorite &&
+        card(customTitle).querySelector(".game-art img").src.endsWith("app/assets/cartridge.svg"));
+
+      await edit(customTitle);
+      $("edit-artwork").click();
+      selectFiles("artwork-input", [file(coverA, `restored-${tag}.png`, "", "image/png")]);
+      await wait(() => !$("edit-save").disabled && $("edit-artwork-preview").src.startsWith("blob:"), "edit cover decode");
+      await saveEdit();
+      saved = await store.getGame(id);
+      check("editing artwork persists the newly selected image", saved.artwork instanceof Blob);
+
+      // Add personal settings only to this newly created QA game. This synthetic state is
+      // marked cloudSaved so a real enabled synchronization timer cannot upload QA bytes.
+      saved.profiles = ["기본", "QA 두 번째"];
+      saved.rtc = { 기본: 123456, "QA 두 번째": -654321 };
+      saved.macros = [{ name: `QA macro ${tag}`, events: [{ key: "A", time: 10 }] }];
+      saved.lastPlayed = Date.now() - 5000;
+      saved.lastProfile = "QA 두 번째";
+      const stateId = `library-qa-state-${tag}`;
+      await store.putGame(saved);
+      await store.putState({ id: stateId, romId: id, core: "nes", profile: "QA 두 번째",
+        label: "QA metadata preservation", created: Date.now(), data: new Blob(["authored QA state"]),
+        syncId: `library-qa-sync-${tag}`, cloudSaved: true, rtcOffset: -654321 });
+      const oldSettings = JSON.stringify({ title: saved.title, profiles: saved.profiles, rtc: saved.rtc,
+        macros: saved.macros, favorite: saved.favorite, lastPlayed: saved.lastPlayed,
+        lastProfile: saved.lastProfile, added: saved.added }),
+        oldStateHash = await blobHash((await store.statesFor(id))[0].data);
+      await reload();
+      const duplicate = file(bytes, `Different filename ${tag}.nes`, `${movedFolder}/Different filename ${tag}.nes`);
+      await stageDirectory(duplicate);
+      await chooseImportArtwork(coverB);
+      await commit(id);
+      saved = await store.getGame(id);
+      check("reimport updates the requested folder and cover", saved.folder === movedFolder &&
+        await blobHash(saved.artwork) !== originalArtworkHash);
+      check("reimport preserves title, profiles, RTC, macros, favorites and play history", oldSettings === JSON.stringify({
+        title: saved.title, profiles: saved.profiles, rtc: saved.rtc, macros: saved.macros,
+        favorite: saved.favorite, lastPlayed: saved.lastPlayed, lastProfile: saved.lastProfile, added: saved.added }));
+      const states = await store.statesFor(id);
+      check("reimport preserves the QA saved state and original ROM identity", states.length === 1 &&
+        states[0].id === stateId && await blobHash(states[0].data) === oldStateHash && await romId(saved.blob) === id);
+      check("synthetic QA state never enters the cloud upload queue", !(await store.pendingStates()).some(state => state.id === stateId));
+
+      const finalArtworkHash = await blobHash(saved.artwork);
+      $("add-local").click();
+      selectFiles("rom-input", [file(bytes, `No changes ${tag}.nes`)]);
+      await wait(() => $("import-list").children.length === 1, "duplicate staging");
+      $("import-folder").value = "";
+      $("import-folder").dispatchEvent(new win.Event("change", { bubbles: true }));
+      await commit(id);
+      saved = await store.getGame(id);
+      check("duplicate without new folder or artwork leaves both unchanged", saved.folder === movedFolder &&
+        await blobHash(saved.artwork) === finalArtworkHash && saved.title === customTitle);
+      lines.push(`\nDONE ${lines.length} checks. Isolated QA ROM ${id.slice(0, 12)} remains in ${movedFolder}.`);
+      output.textContent = lines.join("\n");
+    } catch (error) {
+      lines.push(`FAIL ${error.message}\n${error.stack || ""}`);
+      output.textContent = lines.join("\n");
+    }
+  </script>
+</html>

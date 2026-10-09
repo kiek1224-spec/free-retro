@@ -1,0 +1,19 @@
+PASS actual FCEUmm core ready
+PASS rewind enabled before core startup
+PASS core runs frames
+PASS nonempty serialized state
+PASS IndexedDB stores actual core bytes
+RESTORE {"original":44,"restored":54,"diff":[109,2215,2216,2217,4302,4741,4742,4743,5041,5042,5053,5233,5245,5257,5269,5281,5305]}
+PASS restore earlier RAM and resume execution
+CANVAS {"x":0,"y":0,"width":847,"height":560,"top":0,"right":847,"bottom":560,"left":0}
+PASS PNG screenshot from actual core
+PASS test scene has visible nonblack pixels
+PASS 8x fast forward enabled
+PASS slow motion disables fast forward
+REWIND {"beforeRewind":220,"afterRewind":123,"paused":false,"frame":283}
+PASS rewind restores earlier emulated RAM
+PASS macro persists real press and release
+PASS macro replays native button press and release
+PASS profiles do not mix
+PASS backup for another ROM rejected
+PASS real MediaRecorder produces video bytes

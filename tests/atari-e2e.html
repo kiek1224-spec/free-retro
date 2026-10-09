@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+  <meta charset="utf-8" />
+  <title>Free Retro Original Atari 2600 Core QA</title>
+  <style>
+    body { margin: 0; color: #e9eee1; background: #111719; font: 13px monospace; }
+    iframe { border: 0; width: 100%; height: 100vh; }
+    pre { position: fixed; right: 12px; bottom: 12px; z-index: 40; margin: 0;
+      max-width: 45%; max-height: 35vh; overflow: auto; padding: 14px;
+      background: #101719ed; border: 1px solid #a8d068; white-space: pre-wrap; }
+  </style>
+  <iframe id="player" title="Original Atari QA cartridge"></iframe>
+  <pre id="results">Preparing authored Atari 2600 cartridge…</pre>
+  <script type="module">
+    const frame = document.querySelector("#player"), results = document.querySelector("#results"),
+      lines = [], pending = new Map();
+    let sequence = 0, startResolve, startReject, cartridge;
+    const started = new Promise((resolve, reject) => { startResolve = resolve; startReject = reject; });
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    function check(name, condition) {
+      if (!condition) throw new Error(name);
+      lines.push(`PASS ${name}`); results.textContent = lines.join("\n");
+    }
+    function rpc(action, data = {}) {
+      const id = ++sequence;
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Timed out: ${action}`)); }, 12000);
+        pending.set(id, { resolve, reject, timer });
+        frame.contentWindow.postMessage({ channel: "free-retro", type: "rpc", action, id, ...data }, location.origin);
+      });
+    }
+    window.addEventListener("message", (event) => {
+      if (event.origin !== location.origin || event.source !== frame.contentWindow || event.data?.channel !== "free-retro") return;
+      const message = event.data;
+      if (message.type === "ready") {
+        frame.contentWindow.postMessage({ channel: "free-retro", type: "init",
+          rom: cartridge, core: "atari2600", filename: "atari-fixture.a26",
+          title: "Free Retro Original Atari Color Stripes", gameId: "qa-authored-atari-2600",
+          keys: { save: "F1", pause: "F2" }, rtcOffset: 0 }, location.origin);
+        results.textContent = lines.join("\n") + "\nClick START GAME to begin the real bundled core.";
+      } else if (message.type === "started") startResolve(message);
+      else if (message.type === "error") startReject(new Error(message.message));
+      else if (message.type === "result") {
+        const request = pending.get(message.id);
+        if (!request) return;
+        clearTimeout(request.timer); pending.delete(message.id);
+        message.error ? request.reject(new Error(message.error)) : request.resolve(message.result);
+      }
+    });
+    try {
+      const response = await fetch("./atari-fixture.a26", { cache: "no-store" });
+      if (!response.ok) throw new Error("Run node tests/generate-atari-fixture.mjs first.");
+      cartridge = await response.blob();
+      check("authored cartridge is a 4 KiB single-file ROM", cartridge.size === 4096);
+      frame.src = "../app/player.html";
+      const timeout = setTimeout(() => startReject(new Error("START GAME was not clicked within three minutes.")), 180000);
+      const info = await started;
+      clearTimeout(timeout);
+      const emulator = frame.contentWindow.EJS_emulator;
+      check("bundled Atari 2600 core started as stella2014", emulator.getCore() === "stella2014");
+      check("native cartridge filename preserves the .a26 extension", emulator.fileName.endsWith(".a26"));
+      check("real core reports native save-state support", info.supportsStates === true);
+      await sleep(500);
+      const before = await rpc("stats");
+      await sleep(800);
+      const after = await rpc("stats");
+      check("native emulation advances frames", Number.isFinite(before.frame) && after.frame > before.frame && !after.paused);
+      const screenshot = await rpc("screenshot");
+      check("player screenshot RPC returns rendered image bytes", screenshot instanceof Blob && screenshot.size > 200 && screenshot.type === "image/png");
+      const bitmap = await createImageBitmap(screenshot), canvas = document.createElement("canvas");
+      canvas.width = bitmap.width; canvas.height = bitmap.height;
+      const context = canvas.getContext("2d"); context.drawImage(bitmap, 0, 0); bitmap.close();
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data, colors = new Set();
+      let visible = 0, samples = 0;
+      for (let i = 0; i < pixels.length; i += 64) {
+        samples++;
+        if (pixels[i] + pixels[i + 1] + pixels[i + 2] > 60 && pixels[i + 3] > 128) {
+          visible++;
+          colors.add(`${pixels[i] >> 4},${pixels[i + 1] >> 4},${pixels[i + 2] >> 4}`);
+        }
+      }
+      check("original TIA program produces a non-black frame", visible / samples > 0.3);
+      check("native Atari framebuffer contains distinct color stripes", colors.size >= 6);
+      lines.push(`\nDONE ${lines.length} checks. Direct player only; library records were not changed.`);
+      results.textContent = lines.join("\n");
+    } catch (error) {
+      lines.push(`FAIL ${error.message}\n${error.stack || ""}`);
+      results.textContent = lines.join("\n");
+    }
+  </script>
+</html>

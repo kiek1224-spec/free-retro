@@ -1,0 +1,17 @@
+GBA RTC BCD [38,16,17,0,25,64,0]
+PASS actual mGBA cartridge reads shifted RTC date
+PASS actual mGBA cartridge reads shifted RTC hour and minute
+PASS parent browser real clock unchanged
+PASS RTC continues ticking
+PASS RTC state has actual SRAM bytes
+PASS SRAM marker comes from emulated GBA cartridge
+PASS atomic local save creates durable sync queue
+PASS real core bytes and SRAM survive cloud serialization
+PASS wrong upload ACK cannot drop pending revision
+PASS another device save preserves local original
+PASS received cloud snapshot is not re-uploaded
+PASS duplicate cloud download is skipped
+PASS RTC reset returns game to actual date
+PASS restoring a save restores actual cartridge RTC
+PASS real IndexedDB ACK preserves a newer automatic revision
+ALL RTC AND LOCAL CLOUD CHECKS PASSED
